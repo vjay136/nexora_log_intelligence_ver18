@@ -74,7 +74,10 @@ func (router *V5Router) RouteV5CustomerForFamily(result *V5ParseResult, family s
 			return err
 		}
 		customerErr = router.customerRouter.WriteForFamily(payload, "normal", family)
-		ack := telemetry.DeliveryAck{Destination: "customer", Status: "accepted", Timestamp: time.Now().UTC()}
+		// WriteForFamily admits the record to bounded destination queues. The
+		// subsequent Flush is the durable delivery barrier, so do not represent
+		// queue admission as a destination acknowledgement.
+		ack := telemetry.DeliveryAck{Destination: "customer", Status: "queued", Timestamp: time.Now().UTC()}
 		if customerErr != nil {
 			ack.Status, ack.ErrorCode = "failed", "customer_write_failed"
 		}
@@ -127,6 +130,14 @@ func (router *V5Router) RouteV5Telemetry(result *V5ParseResult) error {
 
 func (router *V5Router) FlushCustomer() error  { return router.customerRouter.Flush() }
 func (router *V5Router) FlushTelemetry() error { return router.telemetryRouter.Flush() }
+
+// QueueStats aggregates the independent customer and metadata destination
+// queues for bounded operational telemetry.
+func (router *V5Router) QueueStats() (depth, capacity int) {
+	customerDepth, customerCapacity := router.customerRouter.QueueStats()
+	metadataDepth, metadataCapacity := router.telemetryRouter.QueueStats()
+	return customerDepth + metadataDepth, customerCapacity + metadataCapacity
+}
 
 func (router *V5Router) Close() error {
 	var customerErr, telemetryErr error

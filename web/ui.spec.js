@@ -14,6 +14,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v16' } =
   const assuranceRequests = [];
   const assuranceCorpora = [];
   const assurancePlans = [];
+  const assuranceRuns = [];
   const outputSaves = [];
   const inputSaves = [];
   const outputProfiles = [];
@@ -46,12 +47,15 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v16' } =
     if (path === '/api/v1/assurance/upload' && request.method() === 'POST') { uploads.push(request.postData() || ''); return fulfill({ retained: true, fixture_id: 'fixture-42', encrypted: true, filename: 'sample.log', content_type: 'text/plain', size_bytes: 28, sha256: 'a'.repeat(64), parser_revision: 'smtp@16.0.0', storage_status: 'encrypted_supabase' }); }
     if (path === '/api/v1/assurance/cases/fixture-42/download') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'application/octet-stream' }, body: 'service=example user=operator' });
     if (path === '/api/v1/assurance/cases' && request.method() === 'POST') { const body = request.postDataJSON(); cases.push({ id: 'case-1', name: body.name, revision: 1, manual_retention: true, parser_id: 'test-parser', passed: true }); return fulfill(cases.at(-1)); }
-    if (path === '/api/v1/assurance/cases') return fulfill({ cases });
+    if (path === '/api/v1/assurance/cases') return fulfill({ cases: [{ id: 'fixture-42', name: 'Retained fixture', payload: { name: 'Retained fixture' } }, ...cases] });
     if (path === '/api/v1/assurance/parsers' && request.method() === 'POST') return fulfill({ id: 'draft-1', state: 'draft' }, 201);
     if (path === '/api/v1/assurance/parsers') return fulfill({ parsers: [] });
     if (path === '/api/v1/assurance/ai-proposals') return fulfill({ proposals: [], raw_samples_retained: false });
     if (path === '/api/v1/assurance/history') return fulfill({ events: [] });
-    if (path === '/api/v1/assurance/plans' && request.method() === 'POST') { const body=request.postDataJSON();const doc={id:body.id,revision:1,state:'active',payload:body};assurancePlans.push(doc);return fulfill({id:body.id,revision:1,state:'active'},201); }
+    if (path === '/api/v1/assurance/plans' && request.method() === 'POST') { const body=request.postDataJSON();const doc={id:body.id,revision:1,state:'active',sha256:'a'.repeat(64),payload:body};assurancePlans.push(doc);return fulfill({id:body.id,revision:1,state:'active'},201); }
+    if (path === '/api/v1/assurance/runs' && request.method() === 'POST') { const body=request.postDataJSON(),run={id:'run-1',plan_id:body.plan_id,plan_revision:body.plan_revision,plan_sha256:'a'.repeat(64),case_id:body.case_id,scenario:body.scenario,state:'passed',queued_at:'2026-10-19T00:00:00Z',started_at:'2026-10-19T00:00:01Z',finished_at:'2026-10-19T00:00:02Z',evidence:{raw_sha256:'b'.repeat(64),passed:true,score:100}};assuranceRuns.push({id:run.id,state:run.state,payload:run});return fulfill(run,201); }
+    if (path === '/api/v1/assurance/runs') return fulfill({runs:assuranceRuns,count:assuranceRuns.length});
+    if (path === '/api/v1/assurance/runs/run-1') return assuranceRuns.length?fulfill(assuranceRuns[0]):fulfill({error:'not found'},404);
     if (path === '/api/v1/assurance/plans') return fulfill({ plans: assurancePlans, count: assurancePlans.length });
     if (path.startsWith('/api/v1/assurance/plans/')) { const id=decodeURIComponent(path.split('/').at(-1)),index=assurancePlans.findIndex(item=>item.id===id);if(request.method()==='PUT'){const body=request.postDataJSON(),previous=assurancePlans[index],doc={id,revision:(previous?.revision||0)+1,state:'active',payload:body};if(index>=0)assurancePlans[index]=doc;else assurancePlans.push(doc);return fulfill({id,revision:doc.revision,state:'active'},201);}if(request.method()==='DELETE'){if(index>=0)assurancePlans.splice(index,1);return fulfill({status:'deleted'});}return index>=0?fulfill(assurancePlans[index]):fulfill({error:'not found'},404); }
     if (path === '/api/v1/quarantine/records/q-1/raw') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'text/plain' }, body: 'exact raw source line' });
@@ -94,7 +98,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v16' } =
     if (path === '/api/v1/system') return fulfill({ version: '16.0.0', health: 'ok', storage: { mode: 'supabase', status: 'connected' }, security: { audit_chain: 'ok' } });
     return fulfill({ error: `Unmocked API: ${path}` }, 500);
   });
-  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves };
+  return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves };
 }
 
 async function login(page) {
@@ -198,8 +202,27 @@ test('Assurance Test Plans saves versioned declarative plans through the control
   await form.locator('[name=version]').fill('1.0.0');
   await form.getByRole('button',{name:'Save test-plan revision'}).click();
   await expect.poll(()=>assurancePlans.length).toBe(1);
-  expect(assurancePlans[0].payload.plan.scenarios).toEqual(['run production parser','compare exact fields']);
+  expect(assurancePlans[0].payload.plan.scenarios).toEqual(['parser-regression']);
   await expect(page.getByText('SMTP certification',{exact:true})).toBeVisible();
+});
+
+
+test('Assurance Runs use an exact plan revision and retained fixture and display persisted evidence', async ({ page }) => {
+  const { assuranceRuns } = await mockController(page);
+  await login(page);
+  await page.getByTestId('nav-assurance').click();
+  await page.getByRole('tab', {name:'Test Plans'}).click();
+  const planForm=page.locator('#assurance-plan-form');
+  await planForm.locator('[name=id]').fill('parser-certification');
+  await planForm.locator('[name=plan]').fill(JSON.stringify({objective:'Certify parser',environment:'synthetic-lab',scenarios:['parser-regression'],pass_criteria:['exact expected output']}));
+  await planForm.getByRole('button',{name:'Save test-plan revision'}).click();
+  await page.getByRole('tab',{name:'Runs',exact:true}).click();
+  await expect(page.locator('#assurance-run-form')).toBeVisible();
+  await page.getByTestId('assurance-run-start').click();
+  await expect.poll(()=>assuranceRuns.length).toBe(1);
+  expect(assuranceRuns[0].payload).toMatchObject({plan_id:'parser-certification',plan_revision:1,case_id:'fixture-42',state:'passed'});
+  await expect(page.getByTestId('assurance-run-row')).toContainText('parser-certification');
+  await expect(page.getByTestId('assurance-run-row')).toContainText('b'.repeat(64));
 });
 
 test('AI workspace exposes provider, status, results, parser, regex, template and approval categories', async ({ page }) => {
@@ -350,7 +373,7 @@ test('Assurance helper trims trailing whitespace, generates editable parser, val
   await page.getByTestId('nav-assurance').click();
   await expect(page.getByRole('tablist', { name: 'Assurance Lab tools' })).toBeVisible();
   const labels = await page.getByRole('tablist', { name: 'Assurance Lab tools' }).getByRole('tab').allTextContents();
-  expect(labels).toEqual(['Analyse', 'Corpus reports', 'Parser drafts', 'Review Queue', 'History', 'Fixtures', 'Parser Creation Helper', 'Test Plans']);
+  expect(labels).toEqual(['Analyse', 'Corpus reports', 'Parser drafts', 'Review Queue', 'History', 'Fixtures', 'Parser Creation Helper', 'Test Plans', 'Runs']);
   await page.getByRole('tab', { name: 'Parser Creation Helper' }).click();
   const form = page.locator('#parser-helper-form');
   await form.locator('[name=samples]').fill('level=INFO user=alice   \r\nlevel=WARN user=bob\t  \r\n');

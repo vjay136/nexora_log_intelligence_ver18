@@ -791,6 +791,15 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 	writeOutput := func(write func() error) error {
 		return write()
 	}
+	outputQueueStats := func() (int, int) {
+		if v5Router != nil {
+			return v5Router.QueueStats()
+		}
+		if legacyRouter != nil {
+			return legacyRouter.QueueStats()
+		}
+		return 0, 0
+	}
 
 	hostname, _ := os.Hostname()
 	nodeID := hostname
@@ -1078,7 +1087,8 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 		if t.file == nil {
 			f, e := os.Open(t.input.Path)
 			if e != nil {
-				streamSamples.put(t.stream.publish(t.input.Path, "error", 0, time.Now()))
+				depth, capacity := outputQueueStats()
+				streamSamples.put(t.stream.publish(t.input.Path, "error", depth, capacity, time.Now()))
 				if errors.Is(e, os.ErrPermission) {
 					journal.event("permission_failure", t.input.Path, e.Error())
 				} else {
@@ -1208,11 +1218,13 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 			}
 			journal.progress(t.input.Path, journalCounts{read: t.stream.readLines.Load(), parsed: t.stream.normalized.Load(), quarantined: t.stream.quarantined.Load()})
 			journal.outputRecovered(t.input.Path)
-			streamSamples.put(t.stream.publish(t.input.Path, phase, 0, time.Now()))
+			depth, capacity := outputQueueStats()
+			streamSamples.put(t.stream.publish(t.input.Path, phase, depth, capacity, time.Now()))
 		} else {
 			journal.progress(t.input.Path, journalCounts{read: t.stream.readLines.Load(), parsed: t.stream.normalized.Load(), quarantined: t.stream.quarantined.Load()})
 			journal.outputRecovered(t.input.Path)
-			streamSamples.put(t.stream.publish(t.input.Path, "reading", 0, time.Now()))
+			depth, capacity := outputQueueStats()
+			streamSamples.put(t.stream.publish(t.input.Path, "reading", depth, capacity, time.Now()))
 		}
 		return nil
 	}

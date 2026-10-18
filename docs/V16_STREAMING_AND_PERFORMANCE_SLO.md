@@ -62,11 +62,14 @@ CPUs, 32, and the configured source count, and can be set from one through
 64. Each source processes at most `source_batch_lines` before yielding; the
 default is 1,000 and the accepted range is 1–10,000. This keeps active sources
 fair when one file has a large backlog. No stage reads an entire file into
-memory. Output writers batch safely across concurrent sources, and the agent
-flushes and syncs routed destinations before advancing that source's
-checkpoint. A source that spends at least half of a telemetry interval waiting
-on output is marked as backpressured. Per-source telemetry includes byte and
-record rates, cumulative parse/output time, and source error count.
+memory. Each configured destination owns a bounded worker queue so a slow
+remote destination cannot serialize writes to healthy destinations. The agent
+flushes every queue and waits for its durable barrier before advancing that
+source's checkpoint. Queue admission is reported as `queued`; it is never
+called a destination acknowledgement. A source that spends at least half of a
+telemetry interval waiting on output is marked as backpressured. Per-source
+telemetry includes byte and record rates, cumulative parse/output time, source
+error count, and aggregate output queue depth/capacity.
 
 At end of file, the reader reports `eof_wait`, retains its offset, and waits for
 new data. When data appears it reports `resumed`. Rotation, truncation,
@@ -77,11 +80,11 @@ credentials.
 ## High-volume thresholds
 
 Thresholds are configuration, not parser decisions. V16 evaluates configured
-read-lines, bytes, quarantine-rate, and queue-depth thresholds. The current
-source-parallel runtime has no asynchronous record queue and therefore reports
-queue depth and capacity as zero instead of inventing backlog. The UI also marks
-telemetry stale after twice the configured sampling interval and shows the exact
-breached condition and timestamp.
+read-lines, bytes, quarantine-rate, and queue-depth thresholds against the
+actual aggregate destination queue depth/capacity. The default queue threshold
+is 80 percent when no explicit depth is configured. The UI also marks telemetry
+stale after twice the configured sampling interval and shows the exact breached
+condition and timestamp.
 
 ## Verified qualification result
 

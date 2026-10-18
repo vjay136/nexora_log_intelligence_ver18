@@ -499,6 +499,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/assurance/history", guard(middleware.PermissionReadParsers, s.handleAssuranceHistory))
 	s.mux.HandleFunc("/api/v1/assurance/plans", s.handleAssurancePlans)
 	s.mux.HandleFunc("/api/v1/assurance/plans/", s.handleAssurancePlan)
+	s.mux.HandleFunc("/api/v1/assurance/runs", s.handleAssuranceRuns)
+	s.mux.HandleFunc("/api/v1/assurance/runs/", s.handleAssuranceRunRecord)
 	s.mux.HandleFunc("/api/v1/assurance/ai-proposal", guard(middleware.PermissionParsePreview, s.handleAssuranceAIProposal))
 	s.mux.HandleFunc("/api/v1/assurance/ai-proposals", guard(middleware.PermissionReadParsers, s.handleAIProposals))
 	s.mux.HandleFunc("/api/v1/assurance/ai-proposals/", guard(middleware.PermissionReadParsers, s.handleAIProposal))

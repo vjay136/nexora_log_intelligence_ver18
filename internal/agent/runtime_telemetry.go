@@ -128,7 +128,7 @@ type streamState struct {
 func (s *streamState) addParse(d time.Duration)  { s.parseDuration.Add(int64(d)) }
 func (s *streamState) addOutput(d time.Duration) { s.outputDuration.Add(int64(d)) }
 func (s *streamState) addTotal(d time.Duration)  { s.totalDuration.Add(int64(d)) }
-func (s *streamState) publish(source, phase string, capacity int, now time.Time) telemetry.StreamFileTelemetry {
+func (s *streamState) publish(source, phase string, depth, capacity int, now time.Time) telemetry.StreamFileTelemetry {
 	s.lastMu.Lock()
 	defer s.lastMu.Unlock()
 	if s.last.IsZero() {
@@ -138,7 +138,7 @@ func (s *streamState) publish(source, phase string, capacity int, now time.Time)
 		s.prevBytes = s.bytes.Load()
 		s.prevOutputDuration = s.outputDuration.Load()
 		s.last = now
-		return telemetry.StreamFileTelemetry{NodeID: s.nodeID, Source: source, Phase: phase, SourceWorkers: s.sourceWorkers, ReadLines: s.prevLines, Normalized: s.prevNormalized, Quarantined: s.prevQuarantined, Errors: s.errors.Load(), Bytes: s.prevBytes, QueueCapacity: capacity, Thresholds: s.thresholds, UpdatedAt: now.UTC()}
+		return telemetry.StreamFileTelemetry{NodeID: s.nodeID, Source: source, Phase: phase, SourceWorkers: s.sourceWorkers, ReadLines: s.prevLines, Normalized: s.prevNormalized, Quarantined: s.prevQuarantined, Errors: s.errors.Load(), Bytes: s.prevBytes, QueueDepth: depth, QueueCapacity: capacity, Backpressure: queueBackpressure(depth, capacity, s.thresholds.QueueDepth), Thresholds: s.thresholds, UpdatedAt: now.UTC()}
 	}
 	elapsed := now.Sub(s.last).Seconds()
 	if elapsed <= 0 {
@@ -150,12 +150,24 @@ func (s *streamState) publish(source, phase string, capacity int, now time.Time)
 	b := s.bytes.Load()
 	outputDuration := s.outputDuration.Load()
 	outputDelta := outputDuration - s.prevOutputDuration
-	// The runtime currently has no asynchronous record queue. Report zero queue
-	// depth/capacity instead of presenting processing throughput as backlog.
-	depth := 0
-	sample := telemetry.StreamFileTelemetry{NodeID: s.nodeID, Source: source, Phase: phase, SourceWorkers: s.sourceWorkers, ReadLinesPerSecond: float64(rl-s.prevLines) / elapsed, NormalizedPerSecond: float64(no-s.prevNormalized) / elapsed, QuarantinedPerSecond: float64(q-s.prevQuarantined) / elapsed, BytesPerSecond: float64(b-s.prevBytes) / elapsed, QueueDepth: depth, QueueCapacity: 0, Backpressure: float64(outputDelta) >= elapsed*float64(time.Second)*0.5, ReadDuration: time.Duration(s.readDuration.Load()), ParseDuration: time.Duration(s.parseDuration.Load()), OutputDuration: time.Duration(outputDuration), TotalDuration: time.Duration(s.totalDuration.Load()), ReadLines: rl, Normalized: no, Quarantined: q, Errors: s.errors.Load(), Bytes: b, UpdatedAt: now.UTC(), Thresholds: s.thresholds}
+	outputWaitBackpressure := float64(outputDelta) >= elapsed*float64(time.Second)*0.5
+	sample := telemetry.StreamFileTelemetry{NodeID: s.nodeID, Source: source, Phase: phase, SourceWorkers: s.sourceWorkers, ReadLinesPerSecond: float64(rl-s.prevLines) / elapsed, NormalizedPerSecond: float64(no-s.prevNormalized) / elapsed, QuarantinedPerSecond: float64(q-s.prevQuarantined) / elapsed, BytesPerSecond: float64(b-s.prevBytes) / elapsed, QueueDepth: depth, QueueCapacity: capacity, Backpressure: queueBackpressure(depth, capacity, s.thresholds.QueueDepth) || outputWaitBackpressure, ReadDuration: time.Duration(s.readDuration.Load()), ParseDuration: time.Duration(s.parseDuration.Load()), OutputDuration: time.Duration(outputDuration), TotalDuration: time.Duration(s.totalDuration.Load()), ReadLines: rl, Normalized: no, Quarantined: q, Errors: s.errors.Load(), Bytes: b, UpdatedAt: now.UTC(), Thresholds: s.thresholds}
 	s.prevLines, s.prevNormalized, s.prevQuarantined, s.prevBytes, s.prevOutputDuration, s.last = rl, no, q, b, outputDuration, now
 	return sample
+}
+
+func queueBackpressure(depth, capacity, configuredThreshold int) bool {
+	if capacity <= 0 {
+		return false
+	}
+	threshold := configuredThreshold
+	if threshold <= 0 || threshold > capacity {
+		threshold = (capacity * 80) / 100
+		if threshold < 1 {
+			threshold = 1
+		}
+	}
+	return depth >= threshold
 }
 
 func init() {

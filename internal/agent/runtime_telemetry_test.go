@@ -13,13 +13,13 @@ func TestStreamTelemetryFirstPublishStartsRateBaselineAtCurrentCounters(t *testi
 	state := &streamState{nodeID: "node", sourceWorkers: 2}
 	state.readLines.Store(40)
 	state.bytes.Store(4000)
-	first := state.publish("/source.log", "reading", 0, time.Unix(100, 0))
+	first := state.publish("/source.log", "reading", 0, 256, time.Unix(100, 0))
 	if first.ReadLines != 40 || first.Bytes != 4000 {
 		t.Fatalf("first sample lost cumulative counts: %+v", first)
 	}
 	state.readLines.Add(10)
 	state.bytes.Add(1000)
-	second := state.publish("/source.log", "reading", 0, time.Unix(101, 0))
+	second := state.publish("/source.log", "reading", 8, 256, time.Unix(101, 0))
 	if second.ReadLinesPerSecond != 10 || second.BytesPerSecond != 1000 {
 		t.Fatalf("rates include pre-baseline counters: %+v", second)
 	}
@@ -27,16 +27,15 @@ func TestStreamTelemetryFirstPublishStartsRateBaselineAtCurrentCounters(t *testi
 
 func TestStreamTelemetryReportsSourceErrorsAndOutputBackpressure(t *testing.T) {
 	state := &streamState{nodeID: "node", sourceWorkers: 4}
-	state.publish("/source.log", "reading", 0, time.Unix(100, 0))
+	state.publish("/source.log", "reading", 0, 10, time.Unix(100, 0))
 	state.errors.Store(2)
-	state.outputDuration.Store(int64(600 * time.Millisecond))
 	state.readLines.Add(10)
-	sample := state.publish("/source.log", "reading", 0, time.Unix(101, 0))
+	sample := state.publish("/source.log", "reading", 8, 10, time.Unix(101, 0))
 	if sample.Errors != 2 {
 		t.Fatalf("source errors = %d, want 2", sample.Errors)
 	}
-	if !sample.Backpressure || sample.QueueDepth != 0 || sample.QueueCapacity != 0 {
-		t.Fatalf("output wait should be visible without an async queue: %+v", sample)
+	if !sample.Backpressure || sample.QueueDepth != 8 || sample.QueueCapacity != 10 {
+		t.Fatalf("bounded output saturation should be visible: %+v", sample)
 	}
 }
 

@@ -6,7 +6,7 @@ This matrix maps the supplied NHLE, NAPI, and Nexora Assurance Lab engineering p
 
 | Area | V16 implementation | Verification evidence |
 |---|---|---|
-| Concurrent source ingestion | A bounded fixed worker pool scans up to 256 configured sources; automatic sizing is capped at 32 workers and explicit sizing at 64. Per-source batches preserve fair scheduling. | `internal/agent/source_workers_test.go`, 101-source append/restart tests, uncached Go suite. |
+| Concurrent source ingestion | A bounded fixed worker pool scans up to 256 configured sources; automatic sizing is capped at 32 workers and explicit sizing at 64. Bounded per-source batches prevent one scan from monopolizing a worker. | `internal/agent/source_workers_test.go`, 101-source append/restart tests, uncached Go suite. |
 | Linux live-file wakeup | Linux inotify watches deduplicated parent directories, coalesces wake signals, and retains periodic reconciliation as the correctness backstop. Watcher failure falls back to reconciliation. | `internal/agent/watcher_linux.go`, append/burst/failure tests. |
 | Shutdown durability | Buffered multiline events are flushed before checkpoints; failed flushes leave offsets replayable. | `finishPendingSources` tests in `internal/agent/source_workers_test.go`. |
 | Bounded parsing | Physical input, multiline records, candidate evidence, structural samples, AI queues, and controller request bodies have explicit bounds. | Agent/engine/controller tests and `docs/V16_ENGINEERING_AUDIT.md`. |
@@ -14,7 +14,9 @@ This matrix maps the supplied NHLE, NAPI, and Nexora Assurance Lab engineering p
 | Fail-closed routing | Truncated JSON and ambiguous candidates retain extracted evidence but route to quarantine with explicit errors and capped confidence. | `internal/engine/engine_test.go`. |
 | Parser assurance | Production parsing, corpus execution, parser creation helper, editable declarative drafts, validation, second-person review, publish, and fleet-sync paths are separated. | Controller tests and browser tests. |
 | Versioned test plans | Assurance exposes bounded declarative test plans with immutable revisions, historical reads, RBAC, audit, WebApp creation/revision/download/delete controls, and no automatic production execution. | `/api/v1/assurance/plans`, controller API tests, browser test. |
+| Persisted Assurance runs | A bounded synchronous run binds an exact test-plan revision/hash to an encrypted retained fixture, records metadata-only evidence and terminal state, supports listing/download, rejects cancellation, and emits an audit event. It is not a background scheduler. | `/api/v1/assurance/runs`, `internal/controlplane/assurance_runs_test.go`, mocked and packaged browser tests. |
 | Input-path rollout | Published profiles target explicit clients or all eligible online clients through an approval proposal while preserving output and secret settings. | Dedicated controller contract and browser tests. |
+| Destination isolation | Each output destination has an independent bounded worker queue. Flush is a delivery barrier that waits for all earlier writes and propagates worker failures before source checkpoints advance. | `internal/output/router_queue_test.go`, routing and agent tests. |
 | Observability | Dashboard, live streams, per-file throughput, parser latency, quarantine counts, queue depth, API latency, client health, and desired/applied parser state are exposed without customer event payloads. | Dashboard/API/UI tests. |
 | Hosted WebApp | Vite build plus same-origin Vercel/Cloudflare proxy adapters require a public HTTPS controller DNS origin and reject private/local origins. | 20 Web/proxy tests and production Vite build. |
 | Corpus evidence | The supplied reviewed corpus accounts for 728/728 inputs, 723 exact-parity parsed records, five expected quarantines, 13,101 source/generated fields, and 278/278 known keys. | Generated corpus evidence referenced by `docs/V16_PROGRESS.md`. |
@@ -33,7 +35,10 @@ This matrix maps the supplied NHLE, NAPI, and Nexora Assurance Lab engineering p
 
 ## Design requirements not claimed as completed
 
-- A durable multi-stage Assurance execution scheduler with resumable long-running runs, automatic dependency orchestration, and an evidence-vault lifecycle beyond current versioned metadata and retained fixtures.
+- A resumable multi-stage Assurance scheduler for long-running external jobs, automatic dependency orchestration, crash recovery, and an evidence-vault lifecycle beyond the current synchronous bounded run records and retained fixtures.
+- Executable Assurance scenarios beyond the current bounded `parse` and `parser-regression` runner, including replay/recovery, remote-output integration, performance, security, customer evaluation, and interrupted-run recovery.
+- The full NAPI parser-factory lifecycle: multi-sample grammar/regex synthesis, regex complexity analysis, held-out and adversarial candidate scoring, optimizer/compiler stages, drift-triggered learning, and measured safe promotion. V16 currently fingerprints bounded records, ranks existing candidates, and can create review-gated declarative drafts with optional AI assistance.
+- Customer-isolated demonstration workspaces, customer-specific certification reports, and automatic preproduction/canary orchestration. Existing production activation remains validation, independent approval, signed rollout, client acknowledgement, and manual operational verification.
 - Proven 1,000-plus-node control-plane scale or guaranteed 10-million-records-per-second throughput.
 - A cross-destination exactly-once ledger spanning files, Loki, ClickHouse, and controller delivery.
 - Complete automated production promotion from a test plan. Production activation intentionally remains validation, review, approval, publish, rollout, and client-acknowledgement gated.

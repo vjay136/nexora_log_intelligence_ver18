@@ -46,7 +46,8 @@ type Config struct {
 	Required        bool              `json:"required,omitempty"`
 	RetryMax        int               `json:"retry_max,omitempty"`
 	RetryBackoffMS  int               `json:"retry_backoff_ms,omitempty"`
-	Format          string            `json:"format,omitempty"` // stdout: json|pretty
+	QueueCapacity   int               `json:"queue_capacity,omitempty"` // per-destination pending writes; defaults to 256
+	Format          string            `json:"format,omitempty"`         // stdout: json|pretty
 }
 
 // Writer sends a parsed envelope to a destination.
@@ -212,14 +213,49 @@ func (w *DiscardWriter) Close() error { return nil }
 
 // Router dispatches envelopes to multiple writers based on route.
 type Router struct {
+	mu       sync.Mutex
 	writers  []Writer
 	families [][]string
+	workers  []*destinationWorker
+	closed   bool
+}
+
+type outputRequest struct {
+	envelope []byte
+	route    string
+	barrier  chan error
+}
+
+type destinationWorker struct {
+	queue  chan outputRequest
+	done   chan error
+	writer Writer
+}
+
+func (w *destinationWorker) run() {
+	var failures []error
+	for request := range w.queue {
+		if request.barrier != nil {
+			if flusher, ok := w.writer.(interface{ Flush() error }); ok {
+				failures = append(failures, flusher.Flush())
+			}
+			request.barrier <- errors.Join(failures...)
+			failures = nil
+			continue
+		}
+		failures = append(failures, w.writer.Write(request.envelope, request.route))
+	}
+	w.done <- errors.Join(errors.Join(failures...), w.writer.Close())
 }
 
 // NewRouter creates a router from a list of output configs.
 func NewRouter(configs []Config) (*Router, error) {
 	router := &Router{}
 	for _, cfg := range configs {
+		if cfg.QueueCapacity < 0 || cfg.QueueCapacity > 65536 {
+			_ = router.Close()
+			return nil, fmt.Errorf("output queue_capacity must be 0..65536")
+		}
 		cfg.Synchronous = true
 		var writer Writer
 		var err error
@@ -250,6 +286,8 @@ func NewRouter(configs []Config) (*Router, error) {
 			writer = NewDiscardWriter(cfg)
 		case "telemetry":
 			writer, err = NewTelemetryWriter(cfg)
+		case "captured":
+			writer, err = NewWriter(cfg)
 		default:
 			err = fmt.Errorf("unknown output type: %s", cfg.Type)
 		}
@@ -259,17 +297,33 @@ func NewRouter(configs []Config) (*Router, error) {
 		}
 		router.writers = append(router.writers, writer)
 		router.families = append(router.families, append([]string(nil), cfg.Families...))
+		capacity := cfg.QueueCapacity
+		if capacity <= 0 {
+			capacity = 256
+		}
+		worker := &destinationWorker{queue: make(chan outputRequest, capacity), done: make(chan error, 1), writer: writer}
+		router.workers = append(router.workers, worker)
+		go worker.run()
 	}
 	return router, nil
 }
 
 // Flush acknowledges buffered destinations before an input cursor is persisted.
 func (r *Router) Flush() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return errors.New("output router closed")
+	}
+	barriers := make([]chan error, 0, len(r.workers))
+	for _, worker := range r.workers {
+		barrier := make(chan error, 1)
+		worker.queue <- outputRequest{barrier: barrier}
+		barriers = append(barriers, barrier)
+	}
 	var failures []error
-	for _, writer := range r.writers {
-		if flusher, ok := writer.(interface{ Flush() error }); ok {
-			failures = append(failures, flusher.Flush())
-		}
+	for _, barrier := range barriers {
+		failures = append(failures, <-barrier)
 	}
 	return errors.Join(failures...)
 }
@@ -304,16 +358,39 @@ func (r *Router) Write(envelope []byte, route string) error {
 // WriteForFamily sends an envelope only to destinations for the selected
 // input/parser family. Destinations without a families filter remain global.
 func (r *Router) WriteForFamily(envelope []byte, route, family string) error {
-	var failures []error
-	for index, writer := range r.writers {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return errors.New("output router closed")
+	}
+	request := outputRequest{envelope: append([]byte(nil), envelope...), route: route}
+	var pending []*destinationWorker
+	for index, worker := range r.workers {
 		if index < len(r.families) && !acceptsFamily(r.families[index], family) {
 			continue
 		}
-		if err := writer.Write(envelope, route); err != nil {
-			failures = append(failures, err)
+		select {
+		case worker.queue <- request:
+		default:
+			pending = append(pending, worker)
 		}
 	}
-	return errors.Join(failures...)
+	for _, worker := range pending {
+		worker.queue <- request
+	}
+	return nil
+}
+
+// QueueStats returns the current bounded backlog across all destinations.
+// It exposes counts only; event content never crosses the telemetry boundary.
+func (r *Router) QueueStats() (depth, capacity int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, worker := range r.workers {
+		depth += len(worker.queue)
+		capacity += cap(worker.queue)
+	}
+	return depth, capacity
 }
 
 func acceptsFamily(allowed []string, family string) bool {
@@ -334,13 +411,20 @@ func acceptsFamily(allowed []string, family string) bool {
 
 // Close closes all writers.
 func (r *Router) Close() error {
-	var last error
-	for _, w := range r.writers {
-		if err := w.Close(); err != nil {
-			last = err
-		}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil
 	}
-	return last
+	r.closed = true
+	for _, worker := range r.workers {
+		close(worker.queue)
+	}
+	var failures []error
+	for _, worker := range r.workers {
+		failures = append(failures, <-worker.done)
+	}
+	return errors.Join(failures...)
 }
 
 var fallbackSpoolMu sync.Mutex

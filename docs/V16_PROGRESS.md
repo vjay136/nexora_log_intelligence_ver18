@@ -12,7 +12,7 @@ Input-path and endpoint profiles are revisioned resources. Publishing creates a 
 
 ## Operator path
 
-The WebApp provides dropdowns populated from live parser-family and corpus catalogs while retaining validated custom-entry paths. Assurance uses the production parser adapter. Unknown & Quarantine exposes exact-raw inspection and download, parser diagnosis links, retry history, bounded replay, and dead-letter state. AI providers are optional and can only propose declarative draft parsers; they cannot activate production changes.
+The WebApp provides dropdowns populated from live parser-family and corpus catalogs while retaining validated custom-entry paths. Assurance uses the production parser adapter, immutable test-plan revisions, and persisted bounded run evidence tied to exact retained fixtures. Unknown & Quarantine exposes exact-raw inspection and download, parser diagnosis links, retry history, bounded replay, and dead-letter state. AI providers are optional and can only propose declarative draft parsers; they cannot activate production changes.
 
 ## Verification model
 
@@ -22,7 +22,7 @@ The release process runs uncached Go tests and vet, Web/API tests, browser tests
 
 - The uncached full Go suite passed. Focused race instrumentation passed for the production adapter and controller packages.
 - The real-controller browser flow passed all 6 scenarios and visits every authenticated workspace, including Live Streams and Input Log Paths.
-- The mocked browser regression suite passed all 35/35 scenarios from the final source, including the aggregate live dashboard, responsive official branding, Parser Creation Workspace, versioned Assurance Test Plans, AI workspaces, quarantine controls, and selected/all-client input-path rollouts.
+- The mocked browser regression suite passed all 36/36 scenarios from the final source, including the aggregate live dashboard, responsive official branding, Parser Creation Workspace, versioned Assurance Test Plans and Runs, AI workspaces, quarantine controls, and selected/all-client input-path rollouts.
 - The supplied corpus accounts for 728/728 inputs: 723 valid records have exact source-field parity, five hash-pinned malformed or truncated records reach expected quarantine, and 278/278 known family keys are covered.
 - The production agent processed and durably checkpointed 5,368,709,120 bytes and 1,310,720 records in 295.596 seconds (17.32 MiB/s) on the recorded six-logical-CPU Linux/amd64 Docker host. Output and checkpoint accounting passed with zero invalid or quarantined records. The report is `docs/evidence/THROUGHPUT_5G.json`.
 

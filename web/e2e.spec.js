@@ -7,7 +7,7 @@ const tabs = [
 ];
 const liveWorkspaceContracts = {
   operations: { paths: ['/api/v1/dashboard/snapshot'], text: 'Parsing Operations Center' },
-  assurance: { paths: ['/api/v1/assurance/cases'], text: 'Production parser assurance' },
+  assurance: { paths: ['/api/v1/assurance/cases','/api/v1/assurance/runs'], text: 'Production parser assurance' },
   streams: { paths: ['/api/v1/telemetry/stream/snapshot'], text: 'Streams' },
   'field-integrity': { paths: ['/api/v1/verification/sample-corpus'], text: 'Family field-accounting proof' },
   fleet: { paths: ['/api/v1/fleet/sync'], text: 'Fleet desired vs active' },
@@ -132,6 +132,7 @@ test('V16 blank-panel regressions: every workspace renders authenticated control
     await expect(page.locator('#page > *').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('#page')).toContainText(contract.text);
     await expect(page.locator('#page')).not.toContainText('undefined');
+    if(tab==='assurance') await expect(page.getByRole('tab',{name:'Runs',exact:true})).toBeVisible();
     await expect.poll(() => contract.paths.every(path => successfulAPIs.has(path)), { message: `${tab} did not complete ${contract.paths.filter(path => !successfulAPIs.has(path)).join(', ')}` }).toBe(true);
     expect((await page.locator('#page').innerText()).trim().length).toBeGreaterThan(100);
   }
@@ -204,6 +205,7 @@ test('legacy Assurance regressions: complete valid JSON, traversal, manual reten
   expect(await readFile(await download.path(), 'utf8')).toBe(`${raw}\n`);
   await page.getByRole('button', { name: 'Clear manually' }).click();
   await expect(page.getByText('Run a case to inspect complete output')).toBeVisible();
+  await page.getByRole('tab', { name: 'Fixtures' }).click();
   await expect(page.getByText(fixtureName, { exact: true })).toBeVisible();
   page.once('dialog', dialog => dialog.accept());
   const purgeResponsePromise = page.waitForResponse(response =>
