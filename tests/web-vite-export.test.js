@@ -50,4 +50,6 @@ test('standalone export documents the Vite preset and platform-neutral static/se
     assert.ok((await readFile(resolve(root, 'scripts/release/build-webapp.py'), 'utf8')).includes(asset), `release WebApp archive omits ${asset}`);
   }
   assert.match(await readFile(resolve(root, 'web/package.json'), 'utf8'), /copy-v16-brand-assets\.mjs/);
+  assert.match(exporter, /copy-v16-brand-assets\.mjs/, 'standalone export must include its Vite brand-copy helper');
+  assert.match(await readFile(resolve(root, 'scripts/release/build-webapp.py'), 'utf8'), /scripts\/copy-v16-brand-assets\.mjs/, 'release archive must include its Vite brand-copy helper');
 });

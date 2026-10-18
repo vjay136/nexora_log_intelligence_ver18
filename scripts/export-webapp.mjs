@@ -19,7 +19,9 @@ for (const name of ['index.html', 'app.js', 'styles.css', 'nexora-logo-v16.png',
 }
 for (const name of ['api', 'functions']) await cp(resolve(root, name), resolve(target, name), { recursive: true });
 await mkdir(resolve(target, 'scripts'), { recursive: true });
-await cp(resolve(root, 'scripts/build-webapp.mjs'), resolve(target, 'scripts/build-webapp.mjs'));
+for (const name of ['build-webapp.mjs', 'copy-v16-brand-assets.mjs']) {
+  await cp(resolve(root, 'scripts', name), resolve(target, 'scripts', name));
+}
 await cp(resolve(root, 'vercel.json'), resolve(target, 'vercel.json'));
 await cp(resolve(root, 'package.json'), resolve(target, 'package.json'));
 await cp(resolve(root, 'package-lock.json'), resolve(target, 'package-lock.json'));

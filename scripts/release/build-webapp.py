@@ -20,6 +20,7 @@ files = [
     "functions/api/v1/[[path]].js", "web/e2e.spec.js", "tests/vercel-proxy.test.js",
     "tests/cloudflare-proxy.test.js", "tests/vercel-preflight.test.js",
     "scripts/deploy-vercel.ps1", "scripts/vercel-preflight.mjs",
+    "scripts/copy-v16-brand-assets.mjs",
 ]
 # Include the deployment build helper when present, but never generated output,
 # local environment files, dependency folders, or controller credentials.
