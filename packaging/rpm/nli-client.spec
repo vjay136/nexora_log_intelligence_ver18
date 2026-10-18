@@ -108,7 +108,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 
 %changelog
-* Sat Oct 18 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-1
+* Sun Oct 18 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-1
 - Add deterministic bounded parser concurrency, V16 parser asset sync, and Vite WebApp release support
 
 * Fri Oct 16 2026 Nexora Engineering <engineering@nexora.local> - 14.0.0-1

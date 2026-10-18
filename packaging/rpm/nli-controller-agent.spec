@@ -94,7 +94,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/README.md
 
 %changelog
-* Sat Oct 18 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-1
+* Sun Oct 18 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-1
 - Add V16 Assurance quarantine analysis, official branding, live dashboards, and Vite deployment support
 
 * Fri Oct 16 2026 Nexora Engineering <engineering@nexora.local> - 14.0.0-1
