@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -32,9 +33,12 @@ type assuranceRunRecord struct {
 	FinishedAt    *time.Time     `json:"finished_at,omitempty"`
 	Evidence      map[string]any `json:"evidence,omitempty"`
 	Error         string         `json:"error,omitempty"`
+	RequestedBy   string         `json:"requested_by,omitempty"`
+	RequestedRole string         `json:"requested_role,omitempty"`
+	RecoveryCount int            `json:"recovery_count,omitempty"`
 }
 
-func (s *Server) persistAssuranceRun(r *http.Request, record assuranceRunRecord, actor string) error {
+func (s *Server) persistAssuranceRun(record assuranceRunRecord, actor string) error {
 	payload, err := json.Marshal(record)
 	if err != nil {
 		return err
@@ -114,7 +118,7 @@ func (s *Server) handleAssuranceRuns(w http.ResponseWriter, r *http.Request) {
 			allowed = true
 		}
 	}
-	if !allowed || (scenario != "parser-regression" && scenario != "parse") {
+	if !allowed || !supportedAssuranceRunScenario(scenario) {
 		jsonError(w, "scenario is not supported by the plan runner", 422)
 		return
 	}
@@ -133,37 +137,20 @@ func (s *Server) handleAssuranceRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
-	record := assuranceRunRecord{SchemaVersion: 1, ID: "run-" + hex.EncodeToString(idBytes), PlanID: input.PlanID, PlanRevision: planDoc.Revision, PlanSHA256: planDoc.Hash, PlanVersion: plan.Version, Scenario: scenario, CaseID: input.CaseID, State: "queued", QueuedAt: now}
-	if err := s.persistAssuranceRun(r, record, principal.Username); err != nil {
+	record := assuranceRunRecord{SchemaVersion: 1, ID: "run-" + hex.EncodeToString(idBytes), PlanID: input.PlanID, PlanRevision: planDoc.Revision, PlanSHA256: planDoc.Hash, PlanVersion: plan.Version, Scenario: scenario, CaseID: input.CaseID, State: "queued", QueuedAt: now, RequestedBy: principal.Username, RequestedRole: principal.Role}
+	if err := s.persistAssuranceRun(record, principal.Username); err != nil {
 		jsonError(w, "run persistence failed", 503)
 		return
 	}
-	record.State = "running"
-	record.StartedAt = &now
-	if err := s.persistAssuranceRun(r, record, principal.Username); err != nil {
-		jsonError(w, "run start persistence failed", 503)
-		return
-	}
-	result := s.runAssurance(assuranceRequest{Raw: secret.Raw, Desired: secret.Desired, Service: secret.Service, Source: secret.Source, FieldMapping: secret.FieldMapping})
-	finished := time.Now().UTC()
-	record.FinishedAt = &finished
-	if result["passed"] == true {
-		record.State = "passed"
-	} else {
-		record.State = "failed"
-	}
-	// Only bounded, non-content evidence crosses the metadata boundary.
-	record.Evidence = map[string]any{"raw_sha256": result["raw_sha256"], "passed": result["passed"], "score": result["score"], "counts": result["counts"], "route": result["route"], "latency_us": result["latency_us"]}
-	if err := s.persistAssuranceRun(r, record, principal.Username); err != nil {
-		jsonError(w, "run result persistence failed", 503)
-		return
-	}
-	outcome := "success"
-	if record.State != "passed" {
-		outcome = "failure"
-	}
-	s.auditAction(principal, "assurance.run", "assurance-runs/"+record.ID, outcome, map[string]string{"state": record.State, "plan_revision": fmt.Sprint(record.PlanRevision)})
-	jsonCreated(w, record)
+	// The fixture was resolved above before accepting the job. Its plaintext is
+	// discarded here and re-opened by the worker only when the durable job is
+	// claimed, so it never enters the in-memory queue or run metadata.
+	_ = secret
+	s.assuranceRuns.Wake()
+	s.auditAction(principal, "assurance.run.queue", "assurance-runs/"+record.ID, "success", map[string]string{"state": record.State, "plan_revision": fmt.Sprint(record.PlanRevision)})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(record)
 }
 
 func (s *Server) handleAssuranceRunRecord(w http.ResponseWriter, r *http.Request) {
@@ -187,14 +174,23 @@ func (s *Server) handleAssuranceRunRecord(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if r.Method == http.MethodPost && len(parts) == 2 && parts[1] == "cancel" {
-		if s.authorize(w, r, middleware.PermissionAssuranceSave) == nil {
+		principal := s.authorize(w, r, middleware.PermissionAssuranceSave)
+		if principal == nil {
 			return
 		}
-		// Runs execute synchronously in the creating request. Advertising a
-		// cancellable queued window would introduce a state race between the
-		// request and a concurrent cancel call. A future durable scheduler may
-		// add an atomic compare-and-swap cancellation transition.
-		jsonError(w, "synchronous Assurance runs cannot be cancelled", 409)
+		record, err := s.assuranceRuns.Cancel(id, principal.Username)
+		if err != nil {
+			if errors.Is(err, errAssuranceRunTerminal) {
+				jsonError(w, err.Error(), http.StatusConflict)
+			} else if errors.Is(err, errAssuranceRunNotFound) {
+				jsonError(w, "Assurance run not found", http.StatusNotFound)
+			} else {
+				jsonError(w, "Assurance run cancellation failed", http.StatusServiceUnavailable)
+			}
+			return
+		}
+		s.auditAction(principal, "assurance.run.cancel", "assurance-runs/"+id, "success", map[string]string{"state": record.State})
+		jsonOK(w, record)
 		return
 	}
 	jsonError(w, "unsupported run operation", 405)

@@ -744,6 +744,10 @@ func (s *Server) handleAssuranceParser(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "parser draft has no declarative parser", 409)
 			return
 		}
+		if len(cases) == 0 && body["generated_by"] == "napi-bounded-v1" {
+			jsonError(w, "NAPI validation evidence is immutable; rerun synthesis with separate discovery and held-out samples", 409)
+			return
+		}
 		validation := validateParserCandidate(definition, cases)
 		body["validation"] = validation
 		body["validation_passed"] = validation["failed"] == 0 && validation["total"] == len(cases)

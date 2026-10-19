@@ -50,10 +50,11 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v16' } =
     if (path === '/api/v1/assurance/cases') return fulfill({ cases: [{ id: 'fixture-42', name: 'Retained fixture', payload: { name: 'Retained fixture' } }, ...cases] });
     if (path === '/api/v1/assurance/parsers' && request.method() === 'POST') return fulfill({ id: 'draft-1', state: 'draft' }, 201);
     if (path === '/api/v1/assurance/parsers') return fulfill({ parsers: [] });
+    if (path === '/api/v1/assurance/napi/synthesize' && request.method() === 'POST') { const body=request.postDataJSON();return fulfill({id:body.id,revision:1,state:'draft',draft_created:true,selected_candidate:'anchored-regex',strategy:'regex',validation:{score:100,held_out_passed:body.held_out.length},regex_safety:{safe:true,engine:'go-re2'},provenance:{discovery_count:body.discovery.length,held_out_count:body.held_out.length,raw_samples_persisted:false},requires_human_approval:true,published:false},201); }
     if (path === '/api/v1/assurance/ai-proposals') return fulfill({ proposals: [], raw_samples_retained: false });
     if (path === '/api/v1/assurance/history') return fulfill({ events: [] });
     if (path === '/api/v1/assurance/plans' && request.method() === 'POST') { const body=request.postDataJSON();const doc={id:body.id,revision:1,state:'active',sha256:'a'.repeat(64),payload:body};assurancePlans.push(doc);return fulfill({id:body.id,revision:1,state:'active'},201); }
-    if (path === '/api/v1/assurance/runs' && request.method() === 'POST') { const body=request.postDataJSON(),run={id:'run-1',plan_id:body.plan_id,plan_revision:body.plan_revision,plan_sha256:'a'.repeat(64),case_id:body.case_id,scenario:body.scenario,state:'passed',queued_at:'2026-10-19T00:00:00Z',started_at:'2026-10-19T00:00:01Z',finished_at:'2026-10-19T00:00:02Z',evidence:{raw_sha256:'b'.repeat(64),passed:true,score:100}};assuranceRuns.push({id:run.id,state:run.state,payload:run});return fulfill(run,201); }
+    if (path === '/api/v1/assurance/runs' && request.method() === 'POST') { const body=request.postDataJSON(),queued={id:'run-1',plan_id:body.plan_id,plan_revision:body.plan_revision,plan_sha256:'a'.repeat(64),case_id:body.case_id,scenario:body.scenario,state:'queued',queued_at:'2026-10-19T00:00:00Z'},run={...queued,state:'passed',started_at:'2026-10-19T00:00:01Z',finished_at:'2026-10-19T00:00:02Z',evidence:{raw_sha256:'b'.repeat(64),passed:true,score:100}};assuranceRuns.push({id:run.id,state:run.state,payload:run});return fulfill(queued,202); }
     if (path === '/api/v1/assurance/runs') return fulfill({runs:assuranceRuns,count:assuranceRuns.length});
     if (path === '/api/v1/assurance/runs/run-1') return assuranceRuns.length?fulfill(assuranceRuns[0]):fulfill({error:'not found'},404);
     if (path === '/api/v1/assurance/plans') return fulfill({ plans: assurancePlans, count: assurancePlans.length });
@@ -190,6 +191,21 @@ test('Assurance Lab tabs isolate each workflow and expose complete generated out
   await expect(page.getByRole('button',{name:'Copy Regex'})).toBeVisible();
 });
 
+test('NAPI Synthesis validates separate datasets and exposes review-gated evidence', async ({ page }) => {
+  await mockController(page);
+  await login(page);
+  await page.getByTestId('nav-assurance').click();
+  await page.getByRole('tab',{name:'NAPI Synthesis',exact:true}).click();
+  const form=page.getByTestId('napi-synthesis-form');
+  await expect(form).toBeVisible();
+  await form.getByRole('button',{name:'Synthesize and validate draft'}).click();
+  const result=page.getByTestId('napi-synthesis-result');
+  await expect(result).toContainText('anchored-regex');
+  await expect(result).toContainText('requires_human_approval');
+  await expect(result).toContainText('raw_samples_persisted');
+  await expect(result).toContainText('false');
+});
+
 test('Assurance Test Plans saves versioned declarative plans through the controller API', async ({ page }) => {
   const { assurancePlans } = await mockController(page);
   await login(page);
@@ -202,7 +218,7 @@ test('Assurance Test Plans saves versioned declarative plans through the control
   await form.locator('[name=version]').fill('1.0.0');
   await form.getByRole('button',{name:'Save test-plan revision'}).click();
   await expect.poll(()=>assurancePlans.length).toBe(1);
-  expect(assurancePlans[0].payload.plan.scenarios).toEqual(['parser-regression']);
+  expect(assurancePlans[0].payload.plan.scenarios).toEqual(['parser-regression','failure-recovery','replay','destination-integration','performance','security']);
   await expect(page.getByText('SMTP certification',{exact:true})).toBeVisible();
 });
 
@@ -218,6 +234,7 @@ test('Assurance Runs use an exact plan revision and retained fixture and display
   await planForm.getByRole('button',{name:'Save test-plan revision'}).click();
   await page.getByRole('tab',{name:'Runs',exact:true}).click();
   await expect(page.locator('#assurance-run-form')).toBeVisible();
+  await expect(page.getByTestId('assurance-run-scenario').locator('option')).toHaveCount(6);
   await page.getByTestId('assurance-run-start').click();
   await expect.poll(()=>assuranceRuns.length).toBe(1);
   expect(assuranceRuns[0].payload).toMatchObject({plan_id:'parser-certification',plan_revision:1,case_id:'fixture-42',state:'passed'});
@@ -373,7 +390,7 @@ test('Assurance helper trims trailing whitespace, generates editable parser, val
   await page.getByTestId('nav-assurance').click();
   await expect(page.getByRole('tablist', { name: 'Assurance Lab tools' })).toBeVisible();
   const labels = await page.getByRole('tablist', { name: 'Assurance Lab tools' }).getByRole('tab').allTextContents();
-  expect(labels).toEqual(['Analyse', 'Corpus reports', 'Parser drafts', 'Review Queue', 'History', 'Fixtures', 'Parser Creation Helper', 'Test Plans', 'Runs']);
+  expect(labels).toEqual(['Analyse', 'Corpus reports', 'Parser drafts', 'Review Queue', 'History', 'Fixtures', 'Parser Creation Helper', 'NAPI Synthesis', 'Test Plans', 'Runs']);
   await page.getByRole('tab', { name: 'Parser Creation Helper' }).click();
   const form = page.locator('#parser-helper-form');
   await form.locator('[name=samples]').fill('level=INFO user=alice   \r\nlevel=WARN user=bob\t  \r\n');

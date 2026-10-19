@@ -1793,7 +1793,7 @@
 			<text x="6680" y="534.5" style="font-family: NLI-Regular; font-size: 25px;fill: rgb(56%,65%,76%); stroke:none;" transform="translate(0,1069) scale(1,-1)">Distribute verified revision; monitor; rollback safely</text>
 			<text x="6680" y="500.5" style="font-family: NLI-Regular; font-size: 25px;fill: rgb(56%,65%,76%); stroke:none;" transform="translate(0,1001) scale(1,-1)">when required.</text>
 			<text x="170" y="163.82" style="font-family: NLI-Semibold; font-size: 31px;fill: rgb(16%,82%,94%); stroke:none;" transform="translate(0,327) scale(1,-1)">NLI V16 principle: deterministic first, explainable always, AI-assisted only when needed, and human-approved before production.</text>
-			<text x="6517.517578125" y="166.16" style="font-family: NLI-Regular; font-size: 28px;fill: rgb(56%,65%,76%); stroke:none;" transform="translate(0,332) scale(1,-1)">Architecture reference • Release v16.0.0-1 • revision recorded in release manifest</text>
+			<text x="6517.517578125" y="166.16" style="font-family: NLI-Regular; font-size: 28px;fill: rgb(56%,65%,76%); stroke:none;" transform="translate(0,332) scale(1,-1)">Architecture reference • Release v16.0.0-2 • revision recorded in release manifest</text>
 		</g>
 	</g>
 </svg>

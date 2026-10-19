@@ -1,5 +1,11 @@
 # Changelog
 
+## [16.0.0-2] - 2026-10-19
+
+- Add durable Assurance execution state and recovery.
+- Add bounded parser synthesis and validation evidence.
+- Add executable failure, replay, destination, performance, and security Assurance scenarios.
+
 ## [16.0.0-1] - 2026-10-18
 
 - Adopted the supplied official Nexora Log Intelligence eagle logo and login

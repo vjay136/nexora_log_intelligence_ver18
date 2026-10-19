@@ -441,7 +441,7 @@ for i, (num, title, body, col) in enumerate(lifecycle):
 
 add_text(170, 4132, "NLI V16 principle: deterministic first, explainable always, AI-assisted only when needed, and human-approved before production.",
          size=31, color=C["cyan"], font="NLI-Semibold")
-add_text(7510, 4132, "Architecture reference • Release v16.0.0-1 • revision recorded in release manifest",
+add_text(7510, 4132, "Architecture reference • Release v16.0.0-2 • revision recorded in release manifest",
          size=28, color=C["muted"], font="NLI-Regular", anchor="end")
 
 

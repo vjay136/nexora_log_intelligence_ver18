@@ -99,6 +99,7 @@ type Server struct {
 	security               *middleware.SecurityMiddleware
 	assurance              *assuranceVault
 	assuranceDeps          *engine.Deps
+	assuranceRuns          *assuranceRunScheduler
 	hub                    *wsrelay.Hub
 	mux                    *http.ServeMux
 	enrollmentToken        string
@@ -222,6 +223,10 @@ func New(cfg Config) (*Server, error) {
 	}
 	if _, err := s.materializeParserBundle(parserBundle); err != nil {
 		return nil, fmt.Errorf("materialize initial parser bundle: %w", err)
+	}
+	s.assuranceRuns, err = newAssuranceRunScheduler(s, 2)
+	if err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -405,6 +410,9 @@ func openArtifactBlobStore(cfg Config) (metastore.BlobStore, error) {
 func (s *Server) Mux() http.Handler { return s.security.Wrap(s.mux) }
 func (s *Server) Close() error {
 	var errs []string
+	if s.assuranceRuns != nil {
+		s.assuranceRuns.Close()
+	}
 	if s.quarantine != nil && s.quarantine.store != nil {
 		if err := s.quarantine.store.Close(); err != nil {
 			errs = append(errs, err.Error())
@@ -490,6 +498,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/config/", s.handleConfigurationResource)
 	s.mux.HandleFunc("/api/v1/assurance/run", guard(middleware.PermissionParsePreview, s.handleAssuranceRun))
 	s.mux.HandleFunc("/api/v1/assurance/parser-helper", guard(middleware.PermissionParsePreview, s.handleParserCreationHelper))
+	s.mux.HandleFunc("/api/v1/assurance/napi/synthesize", s.handleNAPISynthesize)
 	s.mux.HandleFunc("/api/v1/assurance/upload", s.handleAssuranceUpload)
 	s.mux.HandleFunc("/api/v1/assurance/corpus", guard(middleware.PermissionParsePreview, s.handleAssuranceCorpus))
 	s.mux.HandleFunc("/api/v1/assurance/cases", s.handleAssuranceCases)

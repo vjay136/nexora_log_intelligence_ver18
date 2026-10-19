@@ -1,5 +1,5 @@
 %{!?nli_version:%global nli_version 16.0.0}
-%{!?nli_release:%global nli_release 1}
+%{!?nli_release:%global nli_release 2}
 Name:           nli-controller-agent
 Version:        %{nli_version}
 Release:        %{nli_release}%{?dist}
@@ -94,6 +94,9 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/README.md
 
 %changelog
+* Mon Oct 19 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-2
+- Add durable Assurance execution, parser synthesis evidence, and expanded scenarios.
+
 * Sun Oct 18 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-1
 - Add V16 Assurance quarantine analysis, official branding, live dashboards, and Vite deployment support
 

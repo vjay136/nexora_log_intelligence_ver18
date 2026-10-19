@@ -837,9 +837,13 @@ func (s *Server) handleAssuranceCase(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (s *Server) decryptAssurance(r *http.Request, id string) (metastore.Document, assuranceSecret, error) {
+	return s.decryptAssuranceContext(r.Context(), id)
+}
+
+func (s *Server) decryptAssuranceContext(ctx context.Context, id string) (metastore.Document, assuranceSecret, error) {
 	s.assurance.mu.Lock()
 	defer s.assurance.mu.Unlock()
-	doc, err := s.metadata.Get(r.Context(), "assurance-cases", id, 0)
+	doc, err := s.metadata.Get(ctx, "assurance-cases", id, 0)
 	if err != nil {
 		return doc, assuranceSecret{}, err
 	}
@@ -848,10 +852,10 @@ func (s *Server) decryptAssurance(r *http.Request, id string) (metastore.Documen
 		return doc, assuranceSecret{}, err
 	}
 	if !s.assurance.manual && !sealed.ExpiresAt.After(time.Now().UTC()) {
-		if err := s.deleteAssuranceObject(r.Context(), doc.Payload); err != nil {
+		if err := s.deleteAssuranceObject(ctx, doc.Payload); err != nil {
 			return doc, assuranceSecret{}, err
 		}
-		err := s.metadata.Delete(r.Context(), "assurance-cases", id, true, "retention-policy")
+		err := s.metadata.Delete(ctx, "assurance-cases", id, true, "retention-policy")
 		if err != nil {
 			return doc, assuranceSecret{}, err
 		}
@@ -869,7 +873,7 @@ func (s *Server) decryptAssurance(r *http.Request, id string) (metastore.Documen
 		if sealed.CiphertextStorageBackend != "supabase-private-storage" || s.artifactStorage == nil {
 			return doc, assuranceSecret{}, fmt.Errorf("encrypted fixture storage is unavailable")
 		}
-		reader, size, openErr := s.artifactStorage.Open(r.Context(), "nli-assurance-fixtures", sealed.CiphertextObjectPath)
+		reader, size, openErr := s.artifactStorage.Open(ctx, "nli-assurance-fixtures", sealed.CiphertextObjectPath)
 		if openErr != nil {
 			return doc, assuranceSecret{}, openErr
 		}

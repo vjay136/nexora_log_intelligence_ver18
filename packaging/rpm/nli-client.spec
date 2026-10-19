@@ -1,5 +1,5 @@
 %{!?nli_version:%global nli_version 16.0.0}
-%{!?nli_release:%global nli_release 1}
+%{!?nli_release:%global nli_release 2}
 Name:           nli-client
 Version:        %{nli_version}
 Release:        %{nli_release}%{?dist}
@@ -108,6 +108,9 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 
 %changelog
+* Mon Oct 19 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-2
+- Add durable Assurance execution, parser synthesis evidence, and expanded scenarios.
+
 * Sun Oct 18 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-1
 - Add deterministic bounded parser concurrency, V16 parser asset sync, and Vite WebApp release support
 
