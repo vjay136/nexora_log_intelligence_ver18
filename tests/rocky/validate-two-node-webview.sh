@@ -11,6 +11,23 @@ controller_rpm="$ARTIFACT_DIR/nli_controller_agent_ver17.rpm"
 client_rpm="$ARTIFACT_DIR/nli_client_ver17.rpm"
 [[ -s $controller_rpm && -s $client_rpm ]] || { echo 'two-node acceptance: release RPMs are missing' >&2; exit 1; }
 
+docker_path() {
+  if [[ -n ${MSYSTEM:-} ]] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -am "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
+# Prevent Git Bash from rewriting container paths such as /artifacts and /run.
+docker() {
+  MSYS_NO_PATHCONV=1 command docker "$@"
+}
+
+DOCKER_ARTIFACT_DIR=$(docker_path "$ARTIFACT_DIR")
+DOCKER_ROCKY_DIR=$(docker_path "$ROOT/tests/rocky")
+DOCKER_ROCKYFILE=$(docker_path "$ROOT/tests/rocky/Dockerfile")
+
 suffix="${$}-$(date +%s)"
 network="nli-v17-acceptance-$suffix"
 controller="nli-v17-controller-$suffix"
@@ -45,13 +62,13 @@ start_node() {
   local name=$1 hostname=$2
   docker run -d --name "$name" --hostname "$hostname" --network "$network" \
     --privileged --cgroupns=host --tmpfs /run --tmpfs /run/lock \
-    --mount "type=bind,src=$ARTIFACT_DIR,dst=/artifacts,readonly" \
+    --mount "type=bind,src=$DOCKER_ARTIFACT_DIR,dst=/artifacts,readonly" \
     --mount "type=volume,src=$bootstrap_volume,dst=/bootstrap" \
     "$image" >/dev/null
   wait_for_systemd "$name" || { echo "two-node acceptance: systemd did not start in $name" >&2; exit 1; }
 }
 
-docker build --pull=false --build-arg "BASE_IMAGE=$ROCKY10_IMAGE" -t "$image" -f "$ROOT/tests/rocky/Dockerfile" "$ROOT/tests/rocky"
+docker build --pull=false --build-arg "BASE_IMAGE=$ROCKY10_IMAGE" -t "$image" -f "$DOCKER_ROCKYFILE" "$DOCKER_ROCKY_DIR"
 docker network create "$network" >/dev/null
 docker volume create "$bootstrap_volume" >/dev/null
 start_node "$controller" controller

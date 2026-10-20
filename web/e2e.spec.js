@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
 const tabs = [
-  'operations','assurance','streams','api-monitor','field-integrity','fleet','parser-sync','clients','controller','parsers','migration','input-paths','kv','static',
+  'operations','monitoring','streams','sync-fabric','nhle-monitor','napi-monitor','nal-monitor','assurance','api-monitor','field-integrity','fleet','parser-sync','clients','controller','parsers','migration','input-paths','kv','static',
   'projection','studio','regex','knownkeys','semantic','engine-network','engine-url','engine-email','engine-subject','outputs','metadata','unknowns','drift','performance','rollouts','artifacts','security','system','ai',
 ];
 const liveWorkspaceContracts = {
-  operations: { paths: ['/api/v1/dashboard/snapshot'], text: 'Parsing Operations Center' },
+  operations: { paths: ['/api/v1/sync/snapshot'], text: 'Parsing Operations Center' },
+  monitoring: { paths: [], text: 'NLI Monitoring' },
   assurance: { paths: ['/api/v1/assurance/cases','/api/v1/assurance/runs'], text: 'Production parser assurance' },
-  streams: { paths: ['/api/v1/telemetry/stream/snapshot'], text: 'Streams' },
+  streams: { paths: [], text: 'Streams' },
+  'sync-fabric': { paths: [], text: 'Unified Real-Time Synchronization Fabric' },
+  'nhle-monitor': { paths: [], text: 'Nexora Hypersonic Log Engine' },
+  'napi-monitor': { paths: [], text: 'Nexora Adaptive Parser Intelligence' },
+  'nal-monitor': { paths: [], text: 'Nexora Assurance Lab' },
   'field-integrity': { paths: ['/api/v1/verification/sample-corpus'], text: 'Family field-accounting proof' },
   fleet: { paths: ['/api/v1/fleet/sync'], text: 'Fleet desired vs active' },
   'parser-sync': { paths: ['/api/v1/parser-sync'], text: 'Approved desired revision / hash' },
@@ -33,7 +38,7 @@ const liveWorkspaceContracts = {
   unknowns: { paths: ['/api/v1/quarantine/summary','/api/v1/quarantine/records','/api/v1/quarantine/history'], text: 'Quarantine and reprocessing' },
   'api-monitor': { paths: ['/api/v1/health','/api/v1/telemetry/stats','/api/v1/parser-sync'], text: 'API monitor' },
   drift: { paths: ['/api/v1/parser-sync','/api/v1/assurance/history'], text: 'Template and parser drift' },
-  performance: { paths: ['/api/v1/telemetry/stats','/api/v1/metrics/timeseries','/api/v1/system'], text: 'Throughput, latency and backpressure' },
+  performance: { paths: [], text: 'Canonical throughput and latency' },
   rollouts: { paths: ['/api/v1/rollouts'], text: 'Live controller rollouts' },
   artifacts: { paths: ['/api/v1/artifacts'], text: 'Signed immutable artifacts' },
   security: { paths: ['/api/v1/rbac/roles', '/api/v1/users', '/api/v1/audit'], text: 'Immutable audit chain' },
@@ -120,6 +125,15 @@ test('V17 blank-panel regressions: every workspace renders authenticated control
     if (path.startsWith('/api/v1/') && response.status() >= 400) failedAPIs.push(`${response.status()} ${path}`);
     if (path.startsWith('/api/v1/') && response.ok()) successfulAPIs.add(path);
   });
+  // Authentication bootstraps canonical sync before the response listener is
+  // registered. Fetch it once here so this test explicitly proves the V17
+  // source-of-truth contract instead of requiring the legacy dashboard poll.
+  const syncStatus = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/sync/snapshot', { credentials: 'same-origin' });
+    await response.json();
+    return response.status;
+  });
+  expect(syncStatus).toBe(200);
   for (const tab of tabs) {
     const contract = liveWorkspaceContracts[tab];
     await page.getByTestId(`nav-${tab}`).click();
@@ -203,6 +217,7 @@ test('legacy Assurance regressions: complete valid JSON, traversal, manual reten
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/\.log$/);
   expect(await readFile(await download.path(), 'utf8')).toBe(`${raw}\n`);
+  await page.getByRole('tab', { name: 'Analyse', exact: true }).click();
   await page.getByRole('button', { name: 'Clear manually' }).click();
   await expect(page.getByText('Run a case to inspect complete output')).toBeVisible();
   await page.getByRole('tab', { name: 'Fixtures' }).click();
