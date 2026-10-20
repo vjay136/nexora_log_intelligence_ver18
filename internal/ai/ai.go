@@ -16,8 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"nexora.local/nli-v16/internal/drain"
-	"nexora.local/nli-v16/internal/registry"
+	"nexora.local/nli-v17/internal/drain"
+	"nexora.local/nli-v17/internal/registry"
 )
 
 // Config for AI provider integration.

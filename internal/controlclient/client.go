@@ -30,12 +30,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"nexora.local/nli-v16/internal/agent"
-	"nexora.local/nli-v16/internal/engine"
-	"nexora.local/nli-v16/internal/protocol"
-	"nexora.local/nli-v16/internal/registry"
-	"nexora.local/nli-v16/internal/rollout"
-	"nexora.local/nli-v16/telemetry"
+	"nexora.local/nli-v17/internal/agent"
+	"nexora.local/nli-v17/internal/engine"
+	"nexora.local/nli-v17/internal/protocol"
+	"nexora.local/nli-v17/internal/registry"
+	"nexora.local/nli-v17/internal/rollout"
+	"nexora.local/nli-v17/telemetry"
 )
 
 const maxPackageBytes = 512 * 1024 * 1024
@@ -109,7 +109,7 @@ func (c *Config) setDefaults() {
 		c.PollSeconds = 15
 	}
 	if c.TelemetryPollSeconds <= 0 {
-		c.TelemetryPollSeconds = 2
+		c.TelemetryPollSeconds = 1
 	}
 	if c.PackageSpoolDir == "" {
 		c.PackageSpoolDir = "/var/cache/nli/packages"
@@ -205,14 +205,16 @@ func (SystemExecutor) UpgradePackage(ctx context.Context, path string) error {
 }
 
 type Client struct {
-	cfg          Config
-	http         *http.Client
-	executor     Executor
-	pollInterval time.Duration
-	mu           sync.Mutex
-	nodeID       string
-	token        string
-	journal      map[string]protocol.CommandResult
+	cfg               Config
+	http              *http.Client
+	executor          Executor
+	pollInterval      time.Duration
+	mu                sync.Mutex
+	nodeID            string
+	token             string
+	journal           map[string]protocol.CommandResult
+	processGeneration string
+	syncSequence      atomic.Uint64
 }
 
 func New(cfg Config, executor Executor) (*Client, error) {
@@ -230,6 +232,7 @@ func New(cfg Config, executor Executor) (*Client, error) {
 	client := &Client{
 		cfg: cfg, executor: executor, journal: make(map[string]protocol.CommandResult),
 		http: httpClient, pollInterval: time.Duration(cfg.PollSeconds) * time.Second,
+		processGeneration: newProcessGeneration(),
 	}
 	client.loadJournal()
 	return client, nil
@@ -431,11 +434,21 @@ func (c *Client) heartbeat(ctx context.Context) error {
 }
 
 func (c *Client) sendStreamTelemetry(ctx context.Context) error {
-	request := protocol.StreamTelemetryRequest{NodeID: c.nodeID, StreamFiles: readStreamFiles(c.cfg.MetricsURL)}
+	collectedAt := time.Now().UTC()
+	files := readStreamFiles(c.cfg.MetricsURL)
+	request := protocol.StreamTelemetryRequest{SchemaVersion: telemetry.SyncSchemaVersion, NodeID: c.nodeID, ProcessGeneration: c.processGeneration, Sequence: c.syncSequence.Add(1), CollectedAt: collectedAt, PublishedAt: time.Now().UTC(), CollectionIntervalMS: int64(c.cfg.TelemetryPollSeconds) * 1000, PublicationIntervalMS: int64(c.cfg.TelemetryPollSeconds) * 1000, FullSnapshot: true, StreamFiles: files}
 	if len(request.StreamFiles) == 0 {
 		return nil
 	}
 	return c.requestJSON(ctx, http.MethodPost, "/api/v1/node/stream-telemetry", request, nil, nil)
+}
+
+func newProcessGeneration() string {
+	value := make([]byte, 16)
+	if _, err := rand.Read(value); err == nil {
+		return hex.EncodeToString(value)
+	}
+	return fmt.Sprintf("fallback-%d", time.Now().UnixNano())
 }
 
 func readStreamFiles(metricsURL string) []telemetry.StreamFileTelemetry {
@@ -727,12 +740,12 @@ func (c *Client) applyAssetBundle(ctx context.Context, data []byte) (string, err
 			_ = os.RemoveAll(staging)
 			return "", err
 		}
-		if err := os.WriteFile(filepath.Join(assetDir, asset.AssetID+".json"), encoded, 0640); err != nil {
+		if err := writeSynchronizedAsset(filepath.Join(assetDir, asset.AssetID+".json"), encoded); err != nil {
 			_ = os.RemoveAll(staging)
 			return "", err
 		}
 	}
-	if err := os.WriteFile(filepath.Join(staging, "bundle.json"), data, 0640); err != nil {
+	if err := writeSynchronizedAsset(filepath.Join(staging, "bundle.json"), data); err != nil {
 		_ = os.RemoveAll(staging)
 		return "", err
 	}
@@ -754,6 +767,17 @@ func (c *Client) applyAssetBundle(ctx context.Context, data []byte) (string, err
 	}
 	_ = os.RemoveAll(backup)
 	return fmt.Sprintf("%d revisioned parser assets validated and synchronized (bundle %s)", len(bundle.Assets), bundle.BundleHash), nil
+}
+
+// writeSynchronizedAsset reapplies the final mode after creation so a
+// restrictive process umask cannot silently remove the nli group's read bit.
+// Windows accepts Chmod but exposes only its read-only attribute through
+// FileMode; Rocky/Linux lifecycle tests verify the complete 0640 contract.
+func writeSynchronizedAsset(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0o640); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o640)
 }
 
 func activeAssetBundleStatus(path string) (string, map[string]int) {

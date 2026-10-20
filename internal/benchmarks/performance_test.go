@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/auth"
-	"nexora.local/nli-v16/internal/controlplane"
-	"nexora.local/nli-v16/internal/engine"
+	"nexora.local/nli-v17/internal/auth"
+	"nexora.local/nli-v17/internal/controlplane"
+	"nexora.local/nli-v17/internal/engine"
 )
 
 // BenchmarkSuite provides comprehensive performance testing

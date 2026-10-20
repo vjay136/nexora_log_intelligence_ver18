@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"nexora.local/nli-v16/internal/output"
-	"nexora.local/nli-v16/telemetry"
+	"nexora.local/nli-v17/internal/output"
+	"nexora.local/nli-v17/telemetry"
 )
 
 func TestRemoteOnlyProfileGetsMandatoryRetryableLocalQuarantinePath(t *testing.T) {

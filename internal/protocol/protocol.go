@@ -4,7 +4,7 @@ package protocol
 
 import (
 	"encoding/json"
-	"nexora.local/nli-v16/telemetry"
+	"nexora.local/nli-v17/telemetry"
 	"time"
 )
 
@@ -58,10 +58,7 @@ type HeartbeatRequest struct {
 
 // StreamTelemetryRequest carries only bounded source counters on a faster
 // cadence than the full node heartbeat.
-type StreamTelemetryRequest struct {
-	NodeID      string                          `json:"node_id"`
-	StreamFiles []telemetry.StreamFileTelemetry `json:"stream_files"`
-}
+type StreamTelemetryRequest = telemetry.SyncBatch
 
 type ParserInventory struct {
 	ID          string `json:"id"`

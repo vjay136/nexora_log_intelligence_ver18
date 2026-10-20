@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"nexora.local/nli-v16/internal/auth"
+	"nexora.local/nli-v17/internal/auth"
 )
 
 func tmpPath(t *testing.T) string {

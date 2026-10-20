@@ -2,6 +2,7 @@
 """Exercise SELinux edge-boolean capture, rollback, and purge preservation."""
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -9,7 +10,7 @@ import tempfile
 
 root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else pathlib.Path(__file__).parents[2])
 setup = (root / "scripts/setup-controller-rocky.sh").read_text(encoding="utf-8")
-uninstall = (root / "scripts/uninstall-controller-ver16.sh").read_text(encoding="utf-8")
+uninstall = (root / "scripts/uninstall-controller-ver17.sh").read_text(encoding="utf-8")
 
 
 def function(source, name):
@@ -20,7 +21,25 @@ def function(source, name):
 
 
 def run_bash(body):
-    return subprocess.run(["bash", "-c", body], text=True, capture_output=True, check=True)
+    result = subprocess.run(
+        [os.environ.get("NLI_TEST_BASH", "bash"), "-c", body],
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode:
+        raise SystemExit(
+            "SELinux fixture failed with exit "
+            f"{result.returncode}: stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
+    return result
+
+
+def bash_path(path):
+    value = str(path)
+    if os.name == "nt":
+        drive, rest = os.path.splitdrive(value)
+        return f"/{drive[0].lower()}{rest.replace(chr(92), '/')}"
+    return value
 
 
 read_boolean = function(setup, "read_selinux_proxy_boolean")
@@ -79,7 +98,7 @@ if run_bash(script).stdout.strip() != "off on":
 purge_function = function(uninstall, "restore_nli_selinux_boolean_on_purge")
 with tempfile.TemporaryDirectory() as directory:
     manifest = pathlib.Path(directory) / "controller-edge.json"
-    purge_function = purge_function.replace("/etc/nli/controller-edge.json", str(manifest))
+    purge_function = purge_function.replace("/etc/nli/controller-edge.json", bash_path(manifest))
     base = "\n".join([mock_tools, "purge_confirmed=1", "info() { :; }", "command() { builtin command \"$@\"; }",
                       "command -v getenforce >/dev/null", "command -v getsebool >/dev/null", "command -v semanage >/dev/null", "command -v setsebool >/dev/null"])
     for admin_changed, expected in ((False, "off off"), (True, "off on")):

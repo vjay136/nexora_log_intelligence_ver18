@@ -3,16 +3,19 @@
 package agent
 
 import (
-	"hash/fnv"
 	"os"
+	"syscall"
 )
 
-// Windows FileInfo does not expose the Unix device/inode pair. A stable hash
-// of the available identity data still detects replacements and truncations;
-// the existing size check independently handles copy-truncate rotation.
-func identity(info os.FileInfo) (uint64, uint64) {
-	hash := fnv.New64a()
-	_, _ = hash.Write([]byte(info.Name()))
-	_, _ = hash.Write([]byte(info.ModTime().UTC().String()))
-	return 0, hash.Sum64()
+// Windows exposes a stable volume serial number and file index for an open
+// handle. Modification time cannot be used as identity: appending to a file
+// changes it and would make a normal append look like rotation, replaying the
+// file from offset zero on every restart.
+func identity(file *os.File, _ os.FileInfo) (uint64, uint64, error) {
+	var info syscall.ByHandleFileInformation
+	if err := syscall.GetFileInformationByHandle(syscall.Handle(file.Fd()), &info); err != nil {
+		return 0, 0, err
+	}
+	fileIndex := uint64(info.FileIndexHigh)<<32 | uint64(info.FileIndexLow)
+	return uint64(info.VolumeSerialNumber), fileIndex, nil
 }

@@ -15,17 +15,17 @@ import (
 	"strings"
 	"time"
 
-	"nexora.local/nli-v16/internal/confidence"
-	"nexora.local/nli-v16/internal/detector"
-	"nexora.local/nli-v16/internal/drain"
-	"nexora.local/nli-v16/internal/masker"
-	"nexora.local/nli-v16/internal/registry"
-	ts "nexora.local/nli-v16/internal/timestamp"
-	"nexora.local/nli-v16/internal/typeinfer"
+	"nexora.local/nli-v17/internal/confidence"
+	"nexora.local/nli-v17/internal/detector"
+	"nexora.local/nli-v17/internal/drain"
+	"nexora.local/nli-v17/internal/masker"
+	"nexora.local/nli-v17/internal/registry"
+	ts "nexora.local/nli-v17/internal/timestamp"
+	"nexora.local/nli-v17/internal/typeinfer"
 )
 
 // Version is the NLI engine version.
-const Version = "16.0.0"
+const Version = "17.0.0"
 
 // MaxLine is the maximum line size processed (1 MiB).
 const MaxLine = 1024 * 1024

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"nexora.local/nli-v16/internal/engine"
-	"nexora.local/nli-v16/internal/familyprofile"
-	"nexora.local/nli-v16/parser-policy"
-	"nexora.local/nli-v16/telemetry"
+	"nexora.local/nli-v17/internal/engine"
+	"nexora.local/nli-v17/internal/familyprofile"
+	"nexora.local/nli-v17/parser-policy"
+	"nexora.local/nli-v17/telemetry"
 )
 
 // TestTask4Integration verifies a reviewed SMTP-OUT corpus record through the

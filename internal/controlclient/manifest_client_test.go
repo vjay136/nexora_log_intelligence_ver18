@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/protocol"
+	"nexora.local/nli-v17/internal/protocol"
 )
 
 type memoryFetcher map[string][]byte

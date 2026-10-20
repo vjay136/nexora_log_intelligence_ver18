@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	parserpolicy "nexora.local/nli-v16/parser-policy"
-	staticlayout "nexora.local/nli-v16/static-layout"
+	parserpolicy "nexora.local/nli-v17/parser-policy"
+	staticlayout "nexora.local/nli-v17/static-layout"
 )
 
 const familyParserMaxInputBytes = 1 << 20

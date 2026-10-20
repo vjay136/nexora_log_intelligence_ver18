@@ -12,7 +12,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"nexora.local/nli-v16/internal/grok"
+	"nexora.local/nli-v17/internal/grok"
 )
 
 const (

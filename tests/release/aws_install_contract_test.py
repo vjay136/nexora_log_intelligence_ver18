@@ -7,17 +7,17 @@ import sys
 
 root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else pathlib.Path(__file__).parents[2])
 scripts = root / "scripts"
-for name in ("aws-rhel-preflight-ver16.sh", "install-controller-aws-ver16.sh", "install-client-aws-ver16.sh", "aws-security-group-plan-ver16.sh"):
+for name in ("aws-rhel-preflight-ver17.sh", "install-controller-aws-ver17.sh", "install-client-aws-ver17.sh", "aws-security-group-plan-ver17.sh"):
     if platform.system() != "Windows":
         subprocess.run(["bash", "-n", str(scripts / name)], check=True)
 
-plan_script = (scripts / "aws-security-group-plan-ver16.sh").read_text()
+plan_script = (scripts / "aws-security-group-plan-ver17.sh").read_text()
 assert '"FromPort":12382' in plan_script and '"GroupId":"$client_sg"' in plan_script
 assert '"CidrIp":"$admin_cidr"' in plan_script and '"FromPort":22' in plan_script
 assert "0.0.0.0/0" in plan_script and "controller and client security groups must be distinct" in plan_script
 
-controller = (scripts / "install-controller-aws-ver16.sh").read_text()
-client = (scripts / "install-client-aws-ver16.sh").read_text()
+controller = (scripts / "install-controller-aws-ver17.sh").read_text()
+client = (scripts / "install-client-aws-ver17.sh").read_text()
 assert "--mode 7" in controller and "NLI_SETUP_ENDPOINT" in controller
 assert "chmod 600" in client and "--bootstrap" in client
 print("AWS Red Hat installer contracts: PASS")

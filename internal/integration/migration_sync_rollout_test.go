@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/migration"
-	"nexora.local/nli-v16/internal/progressive"
-	"nexora.local/nli-v16/internal/protocol"
-	syncmanager "nexora.local/nli-v16/internal/sync"
+	"nexora.local/nli-v17/internal/migration"
+	"nexora.local/nli-v17/internal/progressive"
+	"nexora.local/nli-v17/internal/protocol"
+	syncmanager "nexora.local/nli-v17/internal/sync"
 )
 
 func TestMigrationSignedSyncAndCanaryContract(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	"nexora.local/nli-v16/internal/output"
+	"nexora.local/nli-v17/internal/output"
 )
 
 const eventPayload = `{"level":"info","service":"app","timestamp":"2026-10-03T09:31:00Z"}`

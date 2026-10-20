@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/multiline"
+	"nexora.local/nli-v17/internal/multiline"
 )
 
 var now = time.Now()

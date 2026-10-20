@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"nexora.local/nli-v16/internal/grok"
-	"nexora.local/nli-v16/internal/mixedkv"
-	"nexora.local/nli-v16/internal/semanticextract"
-	"nexora.local/nli-v16/static-layout"
-	"nexora.local/nli-v16/telemetry"
+	"nexora.local/nli-v17/internal/grok"
+	"nexora.local/nli-v17/internal/mixedkv"
+	"nexora.local/nli-v17/internal/semanticextract"
+	"nexora.local/nli-v17/static-layout"
+	"nexora.local/nli-v17/telemetry"
 )
 
 func (e *ParserPackExecutor) executeStage(ctx context.Context, request *ExecutionRequest, rule ParserRule, stage Stage, fields workingSet) (telemetry.StageResult, error) {

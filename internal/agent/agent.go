@@ -22,19 +22,19 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"nexora.local/nli-v16/internal/adapter"
-	"nexora.local/nli-v16/internal/ai"
-	"nexora.local/nli-v16/internal/drain"
-	"nexora.local/nli-v16/internal/engine"
-	"nexora.local/nli-v16/internal/enrichment"
-	"nexora.local/nli-v16/internal/familyprofile"
-	"nexora.local/nli-v16/internal/masker"
-	"nexora.local/nli-v16/internal/multiline"
-	"nexora.local/nli-v16/internal/output"
-	"nexora.local/nli-v16/internal/quarantine"
-	"nexora.local/nli-v16/internal/registry"
-	"nexora.local/nli-v16/internal/routing"
-	"nexora.local/nli-v16/telemetry"
+	"nexora.local/nli-v17/internal/adapter"
+	"nexora.local/nli-v17/internal/ai"
+	"nexora.local/nli-v17/internal/drain"
+	"nexora.local/nli-v17/internal/engine"
+	"nexora.local/nli-v17/internal/enrichment"
+	"nexora.local/nli-v17/internal/familyprofile"
+	"nexora.local/nli-v17/internal/masker"
+	"nexora.local/nli-v17/internal/multiline"
+	"nexora.local/nli-v17/internal/output"
+	"nexora.local/nli-v17/internal/quarantine"
+	"nexora.local/nli-v17/internal/registry"
+	"nexora.local/nli-v17/internal/routing"
+	"nexora.local/nli-v17/telemetry"
 )
 
 // InputConfig describes one monitored log file.
@@ -1113,8 +1113,19 @@ func Run(ctx context.Context, c Config, once bool) (runErr error) {
 				f.Close()
 				return fmt.Errorf("input must be a regular file: %s", t.input.Path)
 			}
-			dev, ino := identity(info)
-			if t.state.Device != dev || t.state.Inode != ino || t.state.Offset > info.Size() {
+			dev, ino, identityErr := identity(f, info)
+			if identityErr != nil {
+				f.Close()
+				return fmt.Errorf("identify input %s: %w", t.input.Path, identityErr)
+			}
+			legacyWindowsCheckpoint := runtime.GOOS == "windows" && t.hasCheckpoint && t.state.Device == 0 && dev != 0 && t.state.Offset <= info.Size()
+			if legacyWindowsCheckpoint {
+				// Releases before V17 derived the Windows identity from modification
+				// time. Preserve the acknowledged offset once while migrating that
+				// checkpoint to the stable volume/file-index identity.
+				t.state.Device = dev
+				t.state.Inode = ino
+			} else if t.state.Device != dev || t.state.Inode != ino || t.state.Offset > info.Size() {
 				initialObservation := !t.hasCheckpoint && t.state.Device == 0 && t.state.Inode == 0
 				t.state = cursor{Device: dev, Inode: ino}
 				if initialObservation && c.TailFromEnd && !once {

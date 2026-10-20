@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/mixedkv"
-	parserpolicy "nexora.local/nli-v16/parser-policy"
-	staticlayout "nexora.local/nli-v16/static-layout"
+	"nexora.local/nli-v17/internal/mixedkv"
+	parserpolicy "nexora.local/nli-v17/parser-policy"
+	staticlayout "nexora.local/nli-v17/static-layout"
 )
 
 const (

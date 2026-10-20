@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/eventstore"
-	"nexora.local/nli-v16/internal/output"
-	"nexora.local/nli-v16/internal/routing"
-	"nexora.local/nli-v16/telemetry"
+	"nexora.local/nli-v17/internal/eventstore"
+	"nexora.local/nli-v17/internal/output"
+	"nexora.local/nli-v17/internal/routing"
+	"nexora.local/nli-v17/telemetry"
 )
 
 // TestAgentV5DefaultsNoFullEnvelope tests that agent defaults never send full envelopes

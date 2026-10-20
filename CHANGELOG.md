@@ -1,5 +1,11 @@
 # Changelog
 
+## [17.0.0-1] - 2026-10-20
+
+- Add the Nexora Unified Real-Time Synchronization Fabric (NURSF) as the canonical one-second-target telemetry path.
+- Add live NHLE, NAPI, NAL, and Grafana-grade Monitoring workspaces backed by one shared snapshot and incremental SSE store.
+- Add measured freshness, sequence/reconnect handling, bounded diagnostics, root-cause evidence, and responsive premium branding.
+
 ## [16.0.0-2] - 2026-10-19
 
 - Add durable Assurance execution state and recovery.

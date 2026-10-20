@@ -22,18 +22,19 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v16/internal/adapter"
-	"nexora.local/nli-v16/internal/auditlog"
-	"nexora.local/nli-v16/internal/auth"
-	"nexora.local/nli-v16/internal/corpusevidence"
-	"nexora.local/nli-v16/internal/engine"
-	"nexora.local/nli-v16/internal/eventstore"
-	"nexora.local/nli-v16/internal/fleet"
-	"nexora.local/nli-v16/internal/middleware"
-	"nexora.local/nli-v16/internal/protocol"
-	"nexora.local/nli-v16/internal/registry"
-	metastore "nexora.local/nli-v16/internal/store"
-	"nexora.local/nli-v16/internal/wsrelay"
+	"nexora.local/nli-v17/internal/adapter"
+	"nexora.local/nli-v17/internal/auditlog"
+	"nexora.local/nli-v17/internal/auth"
+	"nexora.local/nli-v17/internal/corpusevidence"
+	"nexora.local/nli-v17/internal/engine"
+	"nexora.local/nli-v17/internal/eventstore"
+	"nexora.local/nli-v17/internal/fleet"
+	"nexora.local/nli-v17/internal/middleware"
+	"nexora.local/nli-v17/internal/protocol"
+	"nexora.local/nli-v17/internal/registry"
+	metastore "nexora.local/nli-v17/internal/store"
+	"nexora.local/nli-v17/internal/wsrelay"
+	"nexora.local/nli-v17/telemetry"
 )
 
 type Config struct {
@@ -470,6 +471,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/telemetry/stats", guard(middleware.PermissionReadTelemetry, s.telemetry.GetTelemetryStats))
 	s.mux.HandleFunc("/api/v1/telemetry/stream", guard(middleware.PermissionReadTelemetry, s.streamTelemetry.SSEHandlerWithEvents(s.hub)))
 	s.mux.HandleFunc("/api/v1/telemetry/stream/snapshot", guard(middleware.PermissionReadTelemetry, s.streamTelemetry.SnapshotHandler))
+	s.mux.HandleFunc("/api/v1/sync/snapshot", guard(middleware.PermissionReadTelemetry, s.handleSyncSnapshot))
+	s.mux.HandleFunc("/api/v1/sync/stream", guard(middleware.PermissionReadTelemetry, s.streamTelemetry.CanonicalSSEHandlerWithSnapshot(s.hub, func(r *http.Request) any { return s.canonicalSyncSnapshot(r.Context()) })))
+	s.mux.HandleFunc("/api/v1/sync/diagnostics", guard(middleware.PermissionReadTelemetry, s.streamTelemetry.DiagnosticsHandler))
 	s.mux.HandleFunc("/api/v1/dashboard/snapshot", guard(middleware.PermissionReadTelemetry, s.handleDashboardSnapshot))
 	s.mux.HandleFunc("/api/v1/quarantine/summary", guard(middleware.PermissionReadLogs, s.handleQuarantineSummary))
 	s.mux.HandleFunc("/api/v1/quarantine/records", guard(middleware.PermissionReadLogs, s.handleQuarantineRecords))
@@ -594,7 +598,7 @@ func jsonError(w http.ResponseWriter, message string, status int) {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("X-NLI-Controller", "v16")
+	w.Header().Set("X-NLI-Controller", "v17")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Allow", "POST, OPTIONS")
 	if r.Method == http.MethodOptions {
@@ -703,7 +707,7 @@ func (s *Server) handleNodeRegister(w http.ResponseWriter, r *http.Request) {
 	// A newly enrolled client receives the current active parser asset bundle
 	// without an operator having to create a second rollout manually.
 	if bundle, err := s.buildActiveParserBundle(r.Context()); err == nil {
-		_, _ = s.startParserBundleRollout(r.Context(), "nli-v16-auto-enrollment", "Initial parser asset synchronization", bundle, []string{request.ID})
+		_, _ = s.startParserBundleRollout(r.Context(), "nli-v17-auto-enrollment", "Initial parser asset synchronization", bundle, []string{request.ID})
 	}
 	jsonCreated(w, protocol.RegisterResponse{Status: "registered", NodeID: request.ID, NodeToken: token})
 }
@@ -778,6 +782,14 @@ func (s *Server) handleNodeStreamTelemetry(w http.ResponseWriter, r *http.Reques
 		jsonError(w, "too many stream file samples", http.StatusBadRequest)
 		return
 	}
+	legacy := request.SchemaVersion == "" && request.ProcessGeneration == "" && request.Sequence == 0
+	if !legacy {
+		if request.SchemaVersion != telemetry.SyncSchemaVersion || len(request.ProcessGeneration) < 8 || len(request.ProcessGeneration) > 128 || request.Sequence == 0 || request.CollectionIntervalMS < 100 || request.CollectionIntervalMS > 60000 || request.PublicationIntervalMS < 100 || request.PublicationIntervalMS > 60000 || request.CollectedAt.IsZero() || request.PublishedAt.IsZero() {
+			w.Header().Set("X-NLI-Diagnostic-Code", "sync_schema_invalid")
+			jsonError(w, "invalid versioned synchronization envelope", http.StatusBadRequest)
+			return
+		}
+	}
 	for i := range request.StreamFiles {
 		sample := &request.StreamFiles[i]
 		values := []float64{sample.ReadLinesPerSecond, sample.NormalizedPerSecond, sample.QuarantinedPerSecond, sample.BytesPerSecond}
@@ -792,9 +804,16 @@ func (s *Server) handleNodeStreamTelemetry(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		sample.NodeID = request.NodeID
-		s.streamTelemetry.Publish(*sample)
 	}
-	jsonOK(w, map[string]string{"status": "ok"})
+	if legacy {
+		for _, sample := range request.StreamFiles {
+			s.streamTelemetry.Publish(sample)
+		}
+		jsonOK(w, map[string]any{"status": "accepted_legacy", "schema_version": telemetry.SyncSchemaVersion, "upgrade_recommended": true})
+		return
+	}
+	result := s.streamTelemetry.PublishBatch(request)
+	jsonOK(w, result)
 }
 
 func (s *Server) handleNodeNextCommand(w http.ResponseWriter, r *http.Request) {
@@ -1040,7 +1059,7 @@ func countActive(items []*rolloutRecord) int {
 	return count
 }
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("X-NLI-Controller", "v16")
+	w.Header().Set("X-NLI-Controller", "v17")
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")

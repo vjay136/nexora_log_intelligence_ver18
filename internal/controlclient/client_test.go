@@ -12,14 +12,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/protocol"
-	"nexora.local/nli-v16/internal/rollout"
+	"nexora.local/nli-v17/internal/protocol"
+	"nexora.local/nli-v17/internal/rollout"
 )
 
 type fakeExecutor struct {
@@ -240,7 +241,10 @@ func TestParserAssetBundleSynchronizesEveryRuntimeAssetClass(t *testing.T) {
 		if statErr != nil {
 			t.Fatalf("%s was not synchronized: %v", class, statErr)
 		}
-		if info.Mode().Perm() != 0o640 {
+		// Windows reports writable files as 0666 and cannot represent Unix
+		// owner/group mode bits. Linux is the production RPM target and must
+		// retain the exact group-readable, non-world-readable 0640 contract.
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o640 {
 			t.Fatalf("%s mode = %o, want 0640", class, info.Mode().Perm())
 		}
 	}

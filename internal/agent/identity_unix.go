@@ -7,10 +7,10 @@ import (
 	"syscall"
 )
 
-func identity(info os.FileInfo) (uint64, uint64) {
+func identity(_ *os.File, info os.FileInfo) (uint64, uint64, error) {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
-		return 0, uint64(info.ModTime().UnixNano())
+		return 0, uint64(info.ModTime().UnixNano()), nil
 	}
-	return uint64(stat.Dev), stat.Ino
+	return uint64(stat.Dev), stat.Ino, nil
 }

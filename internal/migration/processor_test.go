@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	parserpolicy "nexora.local/nli-v16/parser-policy"
+	parserpolicy "nexora.local/nli-v17/parser-policy"
 )
 
 const testAlloy = `

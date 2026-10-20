@@ -13,8 +13,8 @@ import (
 	"strings"
 	"sync"
 
-	"nexora.local/nli-v16/internal/grok"
-	"nexora.local/nli-v16/internal/typeinfer"
+	"nexora.local/nli-v17/internal/grok"
+	"nexora.local/nli-v17/internal/typeinfer"
 )
 
 // ParserDef is a declarative parser definition — never executable code.

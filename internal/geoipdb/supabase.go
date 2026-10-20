@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	metastore "nexora.local/nli-v16/internal/store"
+	metastore "nexora.local/nli-v17/internal/store"
 )
 
 // PublishCandidate uploads the three immutable MMDB objects and stores only

@@ -1,4 +1,4 @@
-# NLI v16 WebView, Supabase, and fleet setup
+# NLI v17 WebView, Supabase, and fleet setup
 
 ## Supported topology
 
@@ -10,7 +10,7 @@
 ## 1. Install and configure the controller
 
 ```bash
-sudo dnf upgrade ./nli_controller_agent_ver16.rpm
+sudo dnf upgrade ./nli_controller_agent_ver17.rpm
 sudo nli-controller-setup
 ```
 
@@ -84,7 +84,7 @@ The JSON must identify `nli-controller-agent` and API `v1`.
 The controller creates `/root/nli-client-bootstrap.env`, mode `0600`, valid for exactly one successful registration. Copy it securely to one client, then run:
 
 ```bash
-sudo dnf upgrade ./nli_client_ver16.rpm
+sudo dnf upgrade ./nli_client_ver17.rpm
 sudo nli-client-setup /path/to/nli-client-bootstrap.env
 ```
 
@@ -110,7 +110,7 @@ Sign in with username `admin` and the password chosen during controller setup. I
 sudo nli-admin-reset
 ```
 
-An extracted `webview_ver16.zip` is not an API server. For SSH-tunnel access, extract it and run `Open-NLI-WebView.ps1`; the launcher enables credentials only after the NLI health and login preflights pass.
+An extracted `webview_ver17.zip` is not an API server. For SSH-tunnel access, extract it and run `Open-NLI-WebView.ps1`; the launcher enables credentials only after the NLI health and login preflights pass.
 
 ## 5. What each formerly empty tab requires
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"nexora.local/nli-v16/internal/mixedkv"
+	"nexora.local/nli-v17/internal/mixedkv"
 )
 
 func TestSMTPMixedDelimiterTail(t *testing.T) {

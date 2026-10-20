@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fast, platform-neutral V16 release invariants for the cached quick suite."""
+"""Fast, platform-neutral V17 release invariants for the cached quick suite."""
 
 from __future__ import annotations
 
@@ -16,31 +16,31 @@ def fail(message: str) -> None:
 root = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).parents[2]).resolve()
 
 required = (
-    "scripts/install-controller-ver16.sh",
-    "scripts/install-client-ver16.sh",
-    "scripts/install-controller-aws-ver16.sh",
-    "scripts/install-client-aws-ver16.sh",
-    "scripts/install-controller-aws-cloudflare-ver16.sh",
-    "scripts/setup-cloudflare-tunnel-v16.sh",
-    "scripts/verify-cloudflare-tunnel-v16.sh",
-    "scripts/uninstall-cloudflare-tunnel-v16.sh",
-    "scripts/cloudflare-quick-diagnosis-v16.sh",
+    "scripts/install-controller-ver17.sh",
+    "scripts/install-client-ver17.sh",
+    "scripts/install-controller-aws-ver17.sh",
+    "scripts/install-client-aws-ver17.sh",
+    "scripts/install-controller-aws-cloudflare-ver17.sh",
+    "scripts/setup-cloudflare-tunnel-v17.sh",
+    "scripts/verify-cloudflare-tunnel-v17.sh",
+    "scripts/uninstall-cloudflare-tunnel-v17.sh",
+    "scripts/cloudflare-quick-diagnosis-v17.sh",
     "scripts/vercel-preflight.mjs",
     "wrangler.jsonc",
-    "scripts/uninstall-controller-ver16.sh",
-    "scripts/uninstall-client-ver16.sh",
+    "scripts/uninstall-controller-ver17.sh",
+    "scripts/uninstall-client-ver17.sh",
     "scripts/release/create-bundle.sh",
-    "configs/parser-catalog/nli-v16-parser-catalog.json",
-    "configs/catalog/nli-v16-parser-catalog.json",
+    "configs/parser-catalog/nli-v17-parser-catalog.json",
+    "configs/catalog/nli-v17-parser-catalog.json",
     "testdata/migration/sample-logs/manifest.json",
-    "docs/V16_AWS_RED_HAT_INSTALLATION.md",
-    "docs/V16_CLOUDFLARE_TUNNEL.md",
+    "docs/V17_AWS_RED_HAT_INSTALLATION.md",
+    "docs/V17_CLOUDFLARE_TUNNEL.md",
     "docs/VERCEL_DEPLOYMENT.md",
     "docs/CLOUDFLARE_PAGES_DEPLOYMENT.md",
 )
 for name in required:
     if not (root / name).is_file():
-        fail(f"missing V16 release input: {name}")
+        fail(f"missing V17 release input: {name}")
 
 scan_roots = ("README.md", "docs", "packaging", "scripts", "web", ".github")
 files: list[Path] = []
@@ -55,7 +55,7 @@ for name in scan_roots:
         if candidate.is_file():
             files.append(candidate)
 
-wrong_product = "Nexora Log Inetelligence V16"
+wrong_product = "Nexora Log Inetelligence V17"
 publishable_key_pattern = re.compile(r"sb_publishable_[A-Za-z0-9_-]{20,}")
 live_project_pattern = re.compile(r"https://[a-z0-9]{20}\.supabase\.co", re.IGNORECASE)
 allowed_history = {
@@ -63,10 +63,10 @@ allowed_history = {
     root / "CHANGELOG.md",
     root / "README.md",
     root / ".github/workflows/release.yml",
-    root / "docs/V16_ACCEPTANCE_CHECKLIST.md",
-    root / "docs/V16_ENGINEERING_AUDIT.md",
-    root / "docs/V16_SUPPORT_MATRIX.md",
-    root / "docs/V16_MASTER_SPEC_IMPLEMENTATION_MATRIX.md",
+    root / "docs/V17_ACCEPTANCE_CHECKLIST.md",
+    root / "docs/V17_ENGINEERING_AUDIT.md",
+    root / "docs/V17_SUPPORT_MATRIX.md",
+    root / "docs/V17_MASTER_SPEC_IMPLEMENTATION_MATRIX.md",
     root / "docs/release/README.md",
 }
 stale_release_terms = ("v" + "15", "ver" + "15", "15." + "0.0", "webview_ver" + "15", "webapp_ver" + "15", "nli-v" + "15")
@@ -89,10 +89,10 @@ for path in files:
     if live_project_pattern.search(text):
         fail(f"live Supabase project URL was committed in {path.relative_to(root)}")
 
-catalog_a = (root / "configs/parser-catalog/nli-v16-parser-catalog.json").read_bytes()
-catalog_b = (root / "configs/catalog/nli-v16-parser-catalog.json").read_bytes()
+catalog_a = (root / "configs/parser-catalog/nli-v17-parser-catalog.json").read_bytes()
+catalog_b = (root / "configs/catalog/nli-v17-parser-catalog.json").read_bytes()
 if catalog_a != catalog_b:
-    fail("canonical and embedded V16 parser catalogs differ")
+    fail("canonical and embedded V17 parser catalogs differ")
 
 manifest = json.loads((root / "testdata/migration/sample-logs/manifest.json").read_text(encoding="utf-8"))
 if manifest.get("sample_log_record_count") != 728:
@@ -112,4 +112,4 @@ for installer_name in required[:2]:
         if marker not in installer:
             fail(f"{installer_name} is missing mixed-release protection {marker!r}")
 
-print("V16 quick static release invariants: PASS")
+print("V17 quick static release invariants: PASS")

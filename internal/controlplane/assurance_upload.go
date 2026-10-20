@@ -25,9 +25,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"nexora.local/nli-v16/internal/auditlog"
-	"nexora.local/nli-v16/internal/middleware"
-	metastore "nexora.local/nli-v16/internal/store"
+	"nexora.local/nli-v17/internal/auditlog"
+	"nexora.local/nli-v17/internal/middleware"
+	metastore "nexora.local/nli-v17/internal/store"
 )
 
 const (

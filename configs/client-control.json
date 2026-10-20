@@ -10,7 +10,7 @@
   "asset_dir": "/var/lib/nli/parser-assets",
   "metrics_url": "http://127.0.0.1:12380/metrics",
   "poll_seconds": 15,
-  "telemetry_poll_seconds": 2,
+  "telemetry_poll_seconds": 1,
   "tags": {
     "environment": "production",
     "region": "replace-me",

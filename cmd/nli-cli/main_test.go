@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v16/internal/quarantine"
+	"nexora.local/nli-v17/internal/quarantine"
 )
 
 func TestReplayQueueDeliversResolvedRecordsAndRetainsOnlyUnresolved(t *testing.T) {

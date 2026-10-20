@@ -4,7 +4,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"nexora.local/nli-v16/internal/wsrelay"
+	"nexora.local/nli-v17/internal/wsrelay"
 )
 
 func TestHub_PublishNoClients(t *testing.T) {
