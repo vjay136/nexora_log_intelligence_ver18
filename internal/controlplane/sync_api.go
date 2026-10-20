@@ -37,6 +37,9 @@ func (s *Server) canonicalSyncSnapshot(parent context.Context) map[string]any {
 
 func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.SyncSnapshot) map[string]any {
 	nhleStatus, nhleUpdatedAt := subsystemFreshness(snapshot.Sources, snapshot.GeneratedAt)
+	if len(snapshot.Sources) == 0 {
+		nhleStatus, nhleUpdatedAt = "idle", snapshot.GeneratedAt
+	}
 	activeNodes := map[string]struct{}{}
 	for _, source := range snapshot.Sources {
 		if source.Freshness == telemetry.FreshnessLive || source.Freshness == telemetry.FreshnessDelayed {
@@ -55,7 +58,7 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 		"normalized_per_second": snapshot.Aggregate.NormalizedPerSecond,
 	}
 	requests, _, failures, _ := s.aiMetrics.snapshot()
-	napi := map[string]any{"status": telemetry.FreshnessUnavailable, "requests_total": requests, "failures_total": failures, "pending_drafts": 0}
+	napi := map[string]any{"status": telemetry.FreshnessCollectionFailed, "state": "unavailable", "updated_at": snapshot.GeneratedAt, "requests_total": requests, "failures_total": failures, "pending_drafts": 0}
 	if docs, err := s.metadata.List(ctx, "ai-proposals", metastore.Query{Limit: 1000}); err == nil {
 		pending := 0
 		var latest time.Time
@@ -68,7 +71,11 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 			}
 		}
 		napi["pending_drafts"] = pending
-		napi["status"] = telemetry.FreshnessLive
+		napi["status"] = "ready"
+		napi["state"] = "idle"
+		if pending > 0 {
+			napi["state"] = "ready"
+		}
 		napi["updated_at"] = snapshot.GeneratedAt
 		if !latest.IsZero() {
 			napi["latest_proposal_at"] = latest
@@ -76,7 +83,7 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 	} else {
 		napi["status"] = telemetry.FreshnessCollectionFailed
 	}
-	nal := map[string]any{"status": telemetry.FreshnessUnavailable, "total": 0, "queued": 0, "running": 0, "passed": 0, "failed": 0, "cancelled": 0}
+	nal := map[string]any{"status": telemetry.FreshnessCollectionFailed, "state": "unavailable", "updated_at": snapshot.GeneratedAt, "total": 0, "queued": 0, "running": 0, "passed": 0, "failed": 0, "cancelled": 0}
 	if docs, err := s.metadata.List(ctx, "assurance-runs", metastore.Query{Limit: 1000}); err == nil {
 		counts := map[string]int{}
 		var latest time.Time
@@ -97,7 +104,13 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 		for _, state := range []string{"queued", "running", "passed", "failed", "cancelled"} {
 			nal[state] = counts[state]
 		}
-		nal["status"] = telemetry.FreshnessLive
+		nal["status"] = "ready"
+		nal["state"] = "idle"
+		if counts["running"] > 0 {
+			nal["status"], nal["state"] = "live", "live"
+		} else if counts["queued"] > 0 {
+			nal["state"] = "ready"
+		}
 		nal["updated_at"] = snapshot.GeneratedAt
 		if !latest.IsZero() {
 			nal["latest_run_at"] = latest
@@ -105,12 +118,17 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 	} else {
 		nal["status"] = telemetry.FreshnessCollectionFailed
 	}
-	return map[string]any{"nhle": nhle, "napi": napi, "nal": nal}
+	nursfState := "idle"
+	if snapshot.Diagnostics.LiveSources > 0 {
+		nursfState = "live"
+	}
+	nursf := map[string]any{"status": "ready", "state": nursfState, "updated_at": snapshot.GeneratedAt, "revision": snapshot.Revision, "target_interval_ms": snapshot.TargetIntervalMS, "tracked_nodes": snapshot.Diagnostics.TrackedNodes, "tracked_sources": snapshot.Diagnostics.TrackedSources, "accepted_batches": snapshot.Diagnostics.AcceptedBatches}
+	return map[string]any{"nhle": nhle, "napi": napi, "nal": nal, "nursf": nursf}
 }
 
 func subsystemFreshness(sources []telemetry.StreamFileTelemetry, now time.Time) (string, any) {
 	if len(sources) == 0 {
-		return telemetry.FreshnessUnavailable, nil
+		return "idle", now
 	}
 	status := telemetry.FreshnessDisconnected
 	var latest time.Time

@@ -86,7 +86,7 @@ skip review gates, or make unsupported universal-accuracy claims.
 
 ## Packaging, upgrade, and deployment
 
-- [ ] Controller and client are genuine `17.0.0-1` x86_64 RPMs for Rocky Linux 9
+- [ ] Controller and client are genuine `17.0.0-2` x86_64 RPMs for Rocky Linux 9
   and 10 and support clean installation plus V16 to V17 upgrade, rollback, and
   re-upgrade with configuration/state preservation.
 - [ ] One-use private-CA enrollment, protected node token, sample log, service

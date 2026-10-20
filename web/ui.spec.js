@@ -162,16 +162,21 @@ test('one canonical synchronization snapshot feeds Command Center, NHLE, NAPI an
   await page.getByTestId('nav-nhle-monitor').click();
   await expect(page.getByRole('heading',{name:'Nexora Hypersonic Log Engine'})).toBeVisible();
   await expect(page.locator('#page')).toContainText('120');
+  await expect(page.locator('#page')).toContainText('90 lines/s');
   await page.getByRole('tab',{name:'Diagnostics'}).click();
   await expect(page.getByText('parser latency exceeded warning threshold')).toBeVisible();
 
   await page.getByTestId('nav-napi-monitor').click();
   await expect(page.getByRole('heading',{name:'Nexora Adaptive Parser Intelligence'})).toBeVisible();
   await expect(page.locator('#page')).toContainText('Pending drafts');
+  await expect(page.locator('#page')).toContainText('3');
 
   await page.getByTestId('nav-nal-monitor').click();
   await expect(page.getByRole('heading',{name:'Nexora Assurance Lab'})).toBeVisible();
   await expect(page.locator('#page')).toContainText('Total runs');
+  await expect(page.locator('#page')).toContainText('5');
+  await page.getByTestId('nav-operations').click();
+  await expect(page.locator('.throughput-gauges')).toContainText('90.0/s');
 });
 
 test('Monitoring exposes eleven canonical dashboards without creating another polling path', async ({ page }) => {
@@ -428,9 +433,53 @@ test('canonical SSE deltas update stream rows and reconnect from the accepted re
   await expect(page.locator('#stream-live-table')).toContainText('12.0');
   await page.evaluate(() => window.__streamSources.at(-1).emit('sync_delta',{schema_version:'nli.sync.v1',revision:9,generated_at:new Date().toISOString(),target_interval_ms:1000,aggregate:{nli_source_records_read_total:140,nli_parser_records_succeeded_total:134,nli_parser_records_failed_total:1,nli_normalized_records_total:134,nli_quarantined_records_total:5,nli_queue_depth:4,read_lines_per_second:110,normalized_per_second:105,quarantined_per_second:4,bytes_per_second:4796},source:{node_id:'node-live',source:'/var/log/live.log',process_generation:'gen-live',sequence:2,phase:'eof',counters:{nli_source_records_read_total:20,nli_parser_records_succeeded_total:18,nli_parser_records_failed_total:0,nli_normalized_records_total:18,nli_quarantined_records_total:1},rates:{read_lines_per_second:20,normalized_per_second:18,quarantined_per_second:1,bytes_per_second:700},queue:{nli_queue_depth:0,queue_capacity:20,backpressure:false},controller_received_at:new Date().toISOString(),controller_processing_ms:1,observed_propagation_delay_ms:5,freshness:'live',freshness_age_ms:5,freshness_reason:'within target',critical:false,diagnostic_codes:[]},diagnostics:{subscribers:1,tracked_sources:2,live:2,delayed:0,stale:0,disconnected:0,issues:[]},subsystems:{nhle:{status:'live',source_count:2,active_nodes:2,records_read_total:140,normalized_total:134,quarantined_total:5,queue_depth:4,read_lines_per_second:110,normalized_per_second:105},napi:{status:'live'},nal:{status:'live'}}},'9'));
   await expect(page.locator('#stream-live-table')).toContainText('20.0');
+	await page.getByTestId('nav-operations').click();
+	await expect(page.locator('.throughput-gauges')).toContainText('110.0/s');
 	await page.evaluate(() => window.__streamSources.at(-1).onerror?.(new Event('error')));
 	await new Promise(resolve => setTimeout(resolve, 1_100));
   expect(await page.evaluate(() => window.__streamSources.at(-1).url)).toContain('last_revision=9');
+});
+
+test('equal-revision canonical heartbeat refreshes freshness without replacing the focused workspace', async ({ page }) => {
+  await mockController(page);
+  await page.addInitScript(() => {
+    const instances=[];
+    class FakeEventSource extends EventTarget {
+      constructor(url){super();this.url=url;instances.push(this);window.__streamSources=instances;setTimeout(()=>this.onopen?.(),0);}
+      close(){this.closed=true;}
+      emit(type,data){this.dispatchEvent(new MessageEvent(type,{data:JSON.stringify(data)}));}
+    }
+    window.EventSource=FakeEventSource;
+  });
+  const snapshotResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/v1/sync/snapshot');
+  await login(page);
+  const snapshot=await (await snapshotResponse).json();
+  await page.getByTestId('nav-operations').click();
+  const range=page.locator('#dashboard-range');
+  await range.focus();
+  await range.evaluate(node=>{window.__heartbeatInput=node;window.__heartbeatRoot=document.querySelector('#page').firstElementChild;});
+  await page.evaluate(value=>window.__streamSources.at(-1).emit('sync_heartbeat',{schema_version:value.schema_version,revision:value.revision,generated_at:new Date().toISOString(),target_interval_ms:value.target_interval_ms,aggregate:value.aggregate,sources:value.sources,diagnostics:value.diagnostics}),snapshot);
+  await expect.poll(()=>page.evaluate(()=>({focused:document.activeElement===window.__heartbeatInput,connected:window.__heartbeatInput?.isConnected,root:document.querySelector('#page').firstElementChild===window.__heartbeatRoot}))).toEqual({focused:true,connected:true,root:true});
+  await expect(page.locator('#freshness')).toContainText('live');
+  await page.getByTestId('nav-napi-monitor').click();
+  await expect(page.locator('#page')).toContainText('Pending drafts');
+  await expect(page.locator('#page')).toContainText('3');
+});
+
+test('canonical freshness becomes stale when accepted transport updates stop', async ({ page }) => {
+  await page.clock.install();
+  await mockController(page);
+  await page.addInitScript(() => {
+    class QuietEventSource extends EventTarget {
+      constructor(){super();setTimeout(()=>this.onopen?.(),0);}
+      close(){}
+    }
+    window.EventSource=QuietEventSource;
+  });
+  await login(page);
+  await page.clock.fastForward(6_100);
+  await expect(page.locator('#stream-state')).toContainText('Live sync');
+  await expect(page.locator('.stale-banner')).toContainText('synchronization transport is stale');
 });
 
 test('production Assurance response fills helper using normalized backend proposal and saves a draft', async ({ page }) => {

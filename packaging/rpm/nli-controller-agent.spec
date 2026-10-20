@@ -1,5 +1,5 @@
 %{!?nli_version:%global nli_version 17.0.0}
-%{!?nli_release:%global nli_release 1}
+%{!?nli_release:%global nli_release 2}
 Name:           nli-controller-agent
 Version:        %{nli_version}
 Release:        %{nli_release}%{?dist}
@@ -94,6 +94,9 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/README.md
 
 %changelog
+* Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 17.0.0-2
+- Fix canonical subsystem instrumentation, efficient live heartbeats, and background WebView refresh.
+
 * Tue Oct 20 2026 Nexora Engineering <engineering@nexora.local> - 17.0.0-1
 - Add NURSF canonical real-time synchronization, subsystem monitoring, and Grafana-grade dashboards.
 

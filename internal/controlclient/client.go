@@ -435,11 +435,11 @@ func (c *Client) heartbeat(ctx context.Context) error {
 
 func (c *Client) sendStreamTelemetry(ctx context.Context) error {
 	collectedAt := time.Now().UTC()
-	files := readStreamFiles(c.cfg.MetricsURL)
-	request := protocol.StreamTelemetryRequest{SchemaVersion: telemetry.SyncSchemaVersion, NodeID: c.nodeID, ProcessGeneration: c.processGeneration, Sequence: c.syncSequence.Add(1), CollectedAt: collectedAt, PublishedAt: time.Now().UTC(), CollectionIntervalMS: int64(c.cfg.TelemetryPollSeconds) * 1000, PublicationIntervalMS: int64(c.cfg.TelemetryPollSeconds) * 1000, FullSnapshot: true, StreamFiles: files}
-	if len(request.StreamFiles) == 0 {
-		return nil
+	files, err := readStreamFiles(c.cfg.MetricsURL)
+	if err != nil {
+		return fmt.Errorf("read agent stream snapshot: %w", err)
 	}
+	request := protocol.StreamTelemetryRequest{SchemaVersion: telemetry.SyncSchemaVersion, NodeID: c.nodeID, ProcessGeneration: c.processGeneration, Sequence: c.syncSequence.Add(1), CollectedAt: collectedAt, PublishedAt: time.Now().UTC(), CollectionIntervalMS: int64(c.cfg.TelemetryPollSeconds) * 1000, PublicationIntervalMS: int64(c.cfg.TelemetryPollSeconds) * 1000, FullSnapshot: true, StreamFiles: files}
 	return c.requestJSON(ctx, http.MethodPost, "/api/v1/node/stream-telemetry", request, nil, nil)
 }
 
@@ -451,10 +451,10 @@ func newProcessGeneration() string {
 	return fmt.Sprintf("fallback-%d", time.Now().UnixNano())
 }
 
-func readStreamFiles(metricsURL string) []telemetry.StreamFileTelemetry {
+func readStreamFiles(metricsURL string) ([]telemetry.StreamFileTelemetry, error) {
 	parsed, err := url.Parse(metricsURL)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil
+		return nil, fmt.Errorf("metrics_url must be an absolute HTTP URL")
 	}
 	parsed.Path = strings.TrimSuffix(parsed.Path, "/metrics") + "/stream-snapshot"
 	if strings.HasSuffix(parsed.Path, "/") {
@@ -463,22 +463,22 @@ func readStreamFiles(metricsURL string) []telemetry.StreamFileTelemetry {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(parsed.String())
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil
+		return nil, fmt.Errorf("agent stream snapshot returned HTTP %d", resp.StatusCode)
 	}
 	var payload struct {
 		Files []telemetry.StreamFileTelemetry `json:"files"`
 	}
-	if json.NewDecoder(io.LimitReader(resp.Body, 256<<10)).Decode(&payload) != nil {
-		return nil
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 256<<10)).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("decode agent stream snapshot: %w", err)
 	}
 	if len(payload.Files) > 256 {
 		payload.Files = payload.Files[:256]
 	}
-	return payload.Files
+	return payload.Files, nil
 }
 
 func (c *Client) nextCommand(ctx context.Context) (*protocol.Command, error) {

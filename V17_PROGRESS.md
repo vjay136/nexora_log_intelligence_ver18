@@ -62,7 +62,14 @@ NLI_CONTROLLER_ORIGIN=https://nli-controller.example.com
 
 ## Current state
 
-The source implementation and local uncached Go, browser, Vercel, Cloudflare
+Release 17.0.0-2 fixes end-to-end canonical telemetry publication and display.
+Client-control publishes valid empty snapshots and reports collection errors;
+the controller exposes NHLE, NAPI, NAL, and NURSF state and emits an efficient
+one-second in-memory heartbeat; the WebApp accepts equal-revision heartbeats
+without rebuilding the workspace and coalesces actual data changes while
+preserving scroll, focus, forms, and inner-tab state.
+
+The source implementation and local uncached Go, browser, Vercel, Cloudflare,
 and static contract suites pass. Reproducible artifacts, checksums, SBOM,
 provenance, corpus accounting, and the immutable source revision are generated
 by the release pipeline. Publication is allowed only after the local packaging

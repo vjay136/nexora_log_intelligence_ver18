@@ -604,7 +604,7 @@ func (h *StreamHub) serveCanonicalSSE(w http.ResponseWriter, r *http.Request, ev
 	if !writeSSE(w, flusher, enc, strconv.FormatUint(h.sequence.Add(1), 10), "sync_snapshot", initial) {
 		return
 	}
-	keepalive := time.NewTicker(15 * time.Second)
+	keepalive := time.NewTicker(h.target)
 	defer keepalive.Stop()
 	for {
 		select {
@@ -648,10 +648,14 @@ func (h *StreamHub) serveCanonicalSSE(w http.ResponseWriter, r *http.Request, ev
 				return
 			}
 		case <-keepalive.C:
-			if _, err := io.WriteString(w, ": sync keepalive\n\n"); err != nil {
+			// Keep transport freshness and source disconnect detection live from
+			// the in-memory canonical store. Do not execute the full snapshot
+			// callback here: it can query remote metadata and would multiply that
+			// work by every connected browser once per second.
+			heartbeat := h.CanonicalSnapshot()
+			if !writeSSE(w, flusher, enc, strconv.FormatUint(h.sequence.Add(1), 10), "sync_heartbeat", heartbeat) {
 				return
 			}
-			flusher.Flush()
 		}
 	}
 }

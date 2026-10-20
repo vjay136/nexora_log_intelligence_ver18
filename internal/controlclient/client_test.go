@@ -21,6 +21,7 @@ import (
 
 	"nexora.local/nli-v17/internal/protocol"
 	"nexora.local/nli-v17/internal/rollout"
+	"nexora.local/nli-v17/telemetry"
 )
 
 type fakeExecutor struct {
@@ -118,6 +119,57 @@ func TestRunRetriesEnrollmentUntilControllerReady(t *testing.T) {
 	}
 	if token, readErr := os.ReadFile(filepath.Join(root, "node.token")); readErr != nil || strings.TrimSpace(string(token)) == "" {
 		t.Fatalf("successful retry did not persist a node token: token=%q err=%v", token, readErr)
+	}
+}
+
+func TestSendStreamTelemetryPublishesFreshFullSnapshotsIncludingEmpty(t *testing.T) {
+	root := t.TempDir()
+	files := []telemetry.StreamFileTelemetry{{
+		Source: "/var/log/input.log", Phase: "eof_wait", ReadLinesPerSecond: 12.5,
+		NormalizedPerSecond: 10, QuarantinedPerSecond: 2.5, ReadLines: 120,
+		Normalized: 100, Quarantined: 20, UpdatedAt: time.Now().UTC(),
+	}}
+	metrics := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"files": files})
+	}))
+	defer metrics.Close()
+	client, err := New(Config{
+		ControllerURL: "http://127.0.0.1:12345", AllowInsecureHTTP: true,
+		NodeTokenFile: filepath.Join(root, "node.token"), InstallIDFile: filepath.Join(root, "install.id"),
+		JournalFile: filepath.Join(root, "journal.json"), AgentConfigPath: filepath.Join(root, "nli.json"),
+		ParserDir: filepath.Join(root, "parsers"), PackageSpoolDir: filepath.Join(root, "packages"),
+		MetricsURL: metrics.URL + "/metrics", TelemetryPollSeconds: 1,
+	}, &fakeExecutor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.nodeID, client.token, client.processGeneration = "node-a", "token", "generation-a"
+	var published []protocol.StreamTelemetryRequest
+	client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var batch protocol.StreamTelemetryRequest
+		if err := json.NewDecoder(request.Body).Decode(&batch); err != nil {
+			return nil, err
+		}
+		published = append(published, batch)
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{}`)), Request: request}, nil
+	})
+	if err := client.sendStreamTelemetry(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(published) != 1 || !published[0].FullSnapshot || published[0].PublicationIntervalMS != 1000 || len(published[0].StreamFiles) != 1 {
+		t.Fatalf("incomplete live snapshot publication: %+v", published)
+	}
+	got := published[0].StreamFiles[0]
+	if got.Phase != "eof_wait" || got.ReadLines != 120 || got.Normalized != 100 || got.Quarantined != 20 || got.ReadLinesPerSecond != 12.5 || got.NormalizedPerSecond != 10 || got.QuarantinedPerSecond != 2.5 {
+		t.Fatalf("client changed agent source telemetry: %+v", got)
+	}
+
+	files = nil
+	if err := client.sendStreamTelemetry(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(published) != 2 || !published[1].FullSnapshot || len(published[1].StreamFiles) != 0 {
+		t.Fatalf("empty full snapshot was not sent to clear removed sources: %+v", published)
 	}
 }
 

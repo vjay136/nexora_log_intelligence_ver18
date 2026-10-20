@@ -174,8 +174,17 @@ func TestCanonicalSyncAPIInitialSnapshotAndVersionedIngest(t *testing.T) {
 		Aggregate     telemetry.SyncAggregate    `json:"aggregate"`
 		Subsystems    map[string]json.RawMessage `json:"subsystems"`
 	}
-	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 3 {
+	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 4 {
 		t.Fatalf("canonical snapshot mismatch: %s", data)
+	}
+	for _, name := range []string{"nhle", "napi", "nal", "nursf"} {
+		var subsystem map[string]any
+		if err := json.Unmarshal(snapshot.Subsystems[name], &subsystem); err != nil {
+			t.Fatalf("decode %s subsystem: %v", name, err)
+		}
+		if subsystem["status"] == nil || subsystem["updated_at"] == nil {
+			t.Fatalf("%s subsystem lacks status or fresh timestamp: %s", name, snapshot.Subsystems[name])
+		}
 	}
 	unauthorized, err := http.Get(f.http.URL + "/api/v1/sync/snapshot")
 	if err != nil {
@@ -211,5 +220,31 @@ func TestCanonicalSyncAPIInitialSnapshotAndVersionedIngest(t *testing.T) {
 	}
 	if event != "sync_snapshot" || !strings.Contains(payload, `"subsystems"`) || !strings.Contains(payload, `"diagnostics"`) {
 		t.Fatalf("initial stream event mismatch: event=%q payload=%s", event, payload)
+	}
+	// A quiet client still receives an in-memory canonical heartbeat at the
+	// one-second target. This advances transport/source freshness without
+	// querying remote subsystem metadata once per subscriber and second.
+	deadline := time.After(1500 * time.Millisecond)
+	event = ""
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("canonical SSE did not publish a fresh snapshot at the target interval")
+		default:
+		}
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "event: ") {
+			event = strings.TrimPrefix(line, "event: ")
+		}
+		if line == "" && event != "" {
+			break
+		}
+	}
+	if event != "sync_heartbeat" {
+		t.Fatalf("quiet stream event = %q, want sync_heartbeat", event)
 	}
 }

@@ -54,7 +54,7 @@
     semantic: ['/config/semantic-extraction', 'Semantic extraction policy', { entities: ['ipv4', 'ipv6', 'domain', 'url', 'email'], decode_mime_headers: true, max_input_bytes: 1048576, max_header_bytes: 65536 }],
     outputs: ['/config/output-destinations', 'Output destination profiles', { outputs: [{ type: 'file', path_template: '/var/log/nli/output/auto_normalised_{hour_utc}.jsonl', routes: ['normal', 'warning'] }, { type: 'file', path_template: '/var/log/nli/output/auto_quarantine_{hour_utc}.jsonl', routes: ['quarantine', 'unknown'] }] }],
   };
-  const state = { user: null, csrf: '', page: 'operations', loadedAt: 0, socket: null, streamSource: null, streamMode: 'connecting', reconnect: 1000, streamFailures: 0, live: [], streamLastEventId: '', lastAssurance: null, lastNAPI: null, quarantineDiagnosis: null, controllerReady: false, controllerCheckInFlight: false, proxy: false, polling: false, loadingPage: false, notifications: [], lastRefreshFailure: '', dashboard: null, dashboardRange: '1h', dashboardClient: 'all', monitoringView: 'overview', monitoringRange: '15m', monitoringNode: 'all', monitoringSource: 'all', monitoringSearch: '', monitoringPaused: false, inputHistoryProfile: '', builtinParsers: [], migrationReports: [], assurancePlans: [], aiProposals: [], uploadReport: null, uploadError: '', apiHistory: [], outputPreview: null, streamPollTimer: null, streamReconnectTimer: null, sync: { snapshot: null, history: [], browserAppliedAt: 0, browserDelayMs: null, rejectedUpdates: 0, connectionStartedAt: 0, resyncing: false } };
+  const state = { user: null, csrf: '', page: 'operations', loadedAt: 0, socket: null, streamSource: null, streamMode: 'connecting', reconnect: 1000, streamFailures: 0, live: [], streamLastEventId: '', lastAssurance: null, lastNAPI: null, quarantineDiagnosis: null, controllerReady: false, controllerCheckInFlight: false, proxy: false, polling: false, loadingPage: false, notifications: [], lastRefreshFailure: '', dashboard: null, dashboardRange: '1h', dashboardClient: 'all', monitoringView: 'overview', monitoringRange: '15m', monitoringNode: 'all', monitoringSource: 'all', monitoringSearch: '', monitoringPaused: false, inputHistoryProfile: '', builtinParsers: [], migrationReports: [], assurancePlans: [], aiProposals: [], uploadReport: null, uploadError: '', apiHistory: [], outputPreview: null, streamPollTimer: null, streamReconnectTimer: null, sync: { snapshot: null, history: [], browserAppliedAt: 0, browserDelayMs: null, lastReceivedAt: 0, rejectedUpdates: 0, connectionStartedAt: 0, resyncing: false, renderedSignature: null, renderScheduled: false } };
   const el = id => document.getElementById(id);
   const FORM_PERMISSIONS = {
     'assurance-save-form': 'assurance:save',
@@ -336,23 +336,28 @@
     page.innerHTML = loading();
     try {
       await LOADERS[requestedPage]();
-      if (state.page === requestedPage && state.user) { applyPermissions(); state.loadedAt = Date.now(); updateFreshness(); }
+      if (state.page === requestedPage && state.user) { applyPermissions(); state.loadedAt = Date.now(); if(SYNC_PAGES.has(requestedPage))state.sync.renderedSignature=syncRenderSignature(); updateFreshness(); }
     } catch (error) { if (state.page === requestedPage && state.user) { page.innerHTML = errorState(error); notify(`${TITLES[requestedPage]} could not refresh: ${error.message}`, 'error'); } }
     finally { if (state.page === requestedPage) state.loadingPage = false; }
   }
   function updateFreshness() {
     const sync=state.sync.snapshot,stamp=sync?.generated_at||sync?.aggregate?.nli_telemetry_last_success_timestamp;
-    const age=stamp?Math.max(0,Math.floor((Date.now()-Date.parse(stamp))/1000)):(state.loadedAt?Math.floor((Date.now()-state.loadedAt)/1000):null),target=Math.max(250,Number(sync?.target_interval_ms||1000));
+    const canonicalAge=stamp?Math.max(0,Math.floor((Date.now()-Date.parse(stamp))/1000)):(state.loadedAt?Math.floor((Date.now()-state.loadedAt)/1000):null),transportAge=state.sync.lastReceivedAt?Math.max(0,Math.floor((Date.now()-state.sync.lastReceivedAt)/1000)):null,age=canonicalAge===null?transportAge:transportAge===null?canonicalAge:Math.max(canonicalAge,transportAge),target=Math.max(250,Number(sync?.target_interval_ms||1000));
     const freshness=age==null?'unavailable':age*1000<=target*1.5?'live':age*1000<=target*3?'delayed':'stale';
     el('freshness').textContent=age===null?'Not loaded':`${freshness} · ${age}s old`;
     const stale=freshness==='stale';document.body.classList.toggle('stale',stale);
     const banner=page.querySelector('.stale-banner');
-    if(stale&&!banner)page.insertAdjacentHTML('afterbegin',`<div class="stale-banner">Canonical telemetry is stale (${age}s old). Last-known values remain visible and are not treated as live.</div>`);
+    if(stale&&!banner)page.insertAdjacentHTML('afterbegin',`<div class="stale-banner">Canonical telemetry or its synchronization transport is stale (${age}s since the latest authoritative update). Last-known values remain visible and are not treated as live.</div>`);
     if(!stale&&banner)banner.remove();
   }
 
   const SYNC_SCHEMA='nli.sync.v1';
   const SYNC_PAGES=new Set(['operations','monitoring','streams','performance','sync-fabric','nhle-monitor','napi-monitor','nal-monitor']);
+  const SYNC_VOLATILE_KEYS=new Set(['revision','generated_at','emitted_at','updated_at','controller_received_at','latest_proposal_at','latest_run_at','last_seen','last_activity_at','nli_telemetry_last_success_timestamp','freshness_age_ms','controller_processing_ms','observed_propagation_delay_ms','sequence','accepted','duplicate','out_of_order','sequence_gaps','reconnects','coalesced','rejected','missed_deadlines','clock_skew']);
+  function syncRenderSignature(value){
+    const stable=input=>Array.isArray(input)?input.map(stable):input&&typeof input==='object'?Object.fromEntries(Object.entries(input).filter(([key])=>!SYNC_VOLATILE_KEYS.has(key)).sort(([a],[b])=>a.localeCompare(b)).map(([key,item])=>[key,stable(item)])):input;
+    return `${state.page}:${JSON.stringify(stable(state.sync.snapshot||{}))}`;
+  }
   const present=value=>value!==undefined&&value!==null&&value!=='';
   const metricText=(value,unit='')=>present(value)?`${number(value)}${unit}`:'—';
   const sourceValue=(source,key)=>source?.[key]??source?.counters?.[key]??source?.rates?.[key]??source?.queue?.[key];
@@ -370,6 +375,7 @@
   function acceptSyncSnapshot(raw,{incremental=false,eventType='sync_snapshot',force=false}={}) {
     const incoming=raw?.snapshot||raw;if(!incoming||typeof incoming!=='object')return false;
     if(incoming.schema_version&&incoming.schema_version!==SYNC_SCHEMA){state.sync.rejectedUpdates++;return false;}
+    let heartbeat=false;
     if(incremental){
       const current=state.sync.snapshot||{schema_version:SYNC_SCHEMA,revision:0,sources:[],aggregate:{},diagnostics:{},subsystems:{}};
       if(Number(incoming.revision||0)<=Number(current.revision||0)){state.sync.rejectedUpdates++;return false;}
@@ -380,20 +386,32 @@
       const merged={...current,...incoming,sources:rows,aggregate:incoming.aggregate,diagnostics:{...(current.diagnostics||{}),...(incoming.diagnostics||{})},subsystems:{...(current.subsystems||{}),...(incoming.subsystems||{})}};
       state.sync.snapshot=merged;
     }else{
-      if(!force&&state.sync.snapshot&&present(incoming.revision)&&Number(incoming.revision)<=Number(state.sync.snapshot.revision||0))return false;
+      const current=state.sync.snapshot;
+      if(!force&&state.sync.snapshot&&present(incoming.revision)){
+        const nextRevision=Number(incoming.revision),currentRevision=Number(state.sync.snapshot.revision||0);
+        if(nextRevision<currentRevision){state.sync.rejectedUpdates++;return false;}
+        heartbeat=nextRevision===currentRevision;
+      }
       if(!incoming.schema_version)incoming.schema_version=SYNC_SCHEMA;
-      state.sync.snapshot={...incoming,aggregate:incoming.aggregate&&typeof incoming.aggregate==='object'?incoming.aggregate:{}};
+      state.sync.snapshot=heartbeat?{
+        ...current,...incoming,
+        aggregate:incoming.aggregate&&typeof incoming.aggregate==='object'?incoming.aggregate:(current?.aggregate||{}),
+        diagnostics:{...(current?.diagnostics||{}),...(incoming.diagnostics||{})},
+        sources:Array.isArray(incoming.sources)?incoming.sources:(current?.sources||[]),
+        subsystems:{...(current?.subsystems||{}),...(incoming.subsystems||{})},
+      }:{...incoming,aggregate:incoming.aggregate&&typeof incoming.aggregate==='object'?incoming.aggregate:{}};
     }
     const emitted=Date.parse(raw?.emitted_at||incoming.emitted_at||incoming.generated_at||'');
-    state.sync.browserAppliedAt=Date.now();state.sync.browserDelayMs=Number.isFinite(emitted)?Math.max(0,Date.now()-emitted):null;state.streamFiles=state.sync.snapshot.sources||[];state.loadedAt=Date.now();
-    recordSyncHistory(state.sync.snapshot);updateFreshness();
+    state.sync.browserAppliedAt=Date.now();state.sync.lastReceivedAt=state.sync.browserAppliedAt;state.sync.browserDelayMs=Number.isFinite(emitted)?Math.max(0,Date.now()-emitted):null;state.streamFiles=state.sync.snapshot.sources||[];state.loadedAt=Date.now();
+    if(!heartbeat)recordSyncHistory(state.sync.snapshot);updateFreshness();
     if(eventType==='sync_critical'){const item=incoming.source||incoming.sample||incoming;notify(`Critical telemetry: ${item.freshness_reason||(item.diagnostic_codes||[]).join(', ')||'operator review required'}`,'error');}
     renderSyncSubscriber();return true;
   }
   function syncDashboardSnapshot() {
     const sync=state.sync.snapshot||{},aggregate=sync.aggregate||{},history=state.sync.history.slice(-60),sources=sync.sources||[],diagnostics=sync.diagnostics||{};
     const nodes=[...new Set(sources.map(item=>item.node_id).filter(Boolean))].map(id=>{const nodeSources=sources.filter(item=>item.node_id===id),latest=nodeSources.map(item=>item.controller_received_at||item.updated_at).filter(Boolean).sort().at(-1);return {id,hostname:id,status:nodeSources.some(item=>['stale','disconnected','collection_failed'].includes(item.freshness))?'degraded':'online',last_seen:latest,issues:nodeSources.flatMap(item=>item.diagnostic_codes||[]),metrics:{logs_received:nodeSources.reduce((n,item)=>n+Number(sourceValue(item,'nli_source_records_read_total')||0),0),logs_parsed:nodeSources.reduce((n,item)=>n+Number(sourceValue(item,'nli_parser_records_succeeded_total')||0),0),logs_quarantined:nodeSources.reduce((n,item)=>n+Number(sourceValue(item,'nli_quarantined_records_total')||0),0),parse_latency_ms:Number(diagnostics.propagation_delay_ms_p95||diagnostics.p95_ms||0)}};});
-    return {canonical_aggregate:aggregate,overview:{fleet:{total:nodes.length,online:nodes.filter(item=>item.status==='online').length}},metadata:{records:[],routes:{}},system:{health:'ok',version:'17.0.0'},fleet_sync:{nodes:nodes.map(node=>({node}))},timeseries:{from:history[0]?.timestamp,to:history.at(-1)?.timestamp,points:history.map(item=>({timestamp:item.timestamp,logs_received:item.received,logs_parsed:item.parsed,logs_quarantined:item.quarantine,errors:item.errors,parse_latency_ms_avg:item.latency}))},stream_files:sources,sync_diagnostics:diagnostics};
+    const streamFiles=sources.map(item=>({...item,read_lines_per_second:sourceValue(item,'read_lines_per_second'),normalized_per_second:sourceValue(item,'normalized_per_second'),quarantined_per_second:sourceValue(item,'quarantined_per_second'),queue_depth:sourceValue(item,'queue_depth')??sourceValue(item,'nli_queue_depth'),queue_capacity:sourceValue(item,'queue_capacity'),backpressure:sourceValue(item,'backpressure'),read_duration_ns:sourceValue(item,'read_duration_ns'),parse_duration_ns:sourceValue(item,'parse_duration_ns'),output_duration_ns:sourceValue(item,'output_duration_ns')}));
+    return {canonical_aggregate:aggregate,overview:{fleet:{total:nodes.length,online:nodes.filter(item=>item.status==='online').length}},metadata:{records:[],routes:{}},system:{health:'ok',version:'17.0.0'},fleet_sync:{nodes:nodes.map(node=>({node}))},timeseries:{from:history[0]?.timestamp,to:history.at(-1)?.timestamp,points:history.map(item=>({timestamp:item.timestamp,logs_received:item.received,logs_parsed:item.parsed,logs_quarantined:item.quarantine,errors:item.errors,parse_latency_ms_avg:item.latency}))},stream_files:streamFiles,sync_diagnostics:diagnostics};
   }
   function issueRows(scope='') {
     const snapshot=state.sync.snapshot||{},issues=[...(snapshot.diagnostics?.issues||[])];
@@ -405,9 +423,9 @@
   function subsystemNav() { return `<div class="tabs subsystem-tabs" role="tablist" data-subsystem-tabs><button class="tab" data-subsystem-tab="overview">Overview</button><button class="tab" data-subsystem-tab="activity">Live activity</button><button class="tab" data-subsystem-tab="freshness">Freshness</button><button class="tab" data-subsystem-tab="diagnostics">Diagnostics</button></div>`; }
   function subsystemMetric(label,value,note,unit='',tone='blue') { return dashboardKPI(label,metricText(value,unit),note,tone); }
   function renderSubsystemPage(kind) {
-    const snapshot=state.sync.snapshot||{},value=snapshot.subsystems?.[kind]||{},status=value.status||'not_instrumented',updated=value.updated_at||snapshot.generated_at;
+    const snapshot=state.sync.snapshot||{};
     const defs=kind==='nhle-monitor'?{key:'nhle',name:'Nexora Hypersonic Log Engine',short:'NHLE',description:'Parallel source ingestion, framing, normalization, queue and backpressure status.',cards:[['Sources','source_count','Registered source readers'],['Active nodes','active_nodes','Nodes publishing NHLE state'],['Records read','records_read_total','Cumulative source records'],['Normalized','normalized_total','Structured output records'],['Quarantined','quarantined_total','Records awaiting resolution'],['Queue depth','queue_depth','Current bounded queue'],['Read rate','read_lines_per_second','Current aggregate',' lines/s'],['Output rate','normalized_per_second','Current aggregate',' lines/s']]}:kind==='napi-monitor'?{key:'napi',name:'Nexora Adaptive Parser Intelligence',short:'NAPI',description:'Bounded parser synthesis, proposal failures and approval-gated draft activity.',cards:[['Requests','requests_total','Synthesis requests'],['Failures','failures_total','Failed synthesis requests'],['Pending drafts','pending_drafts','Awaiting validation or review'],['Latest proposal','latest_proposal_at','Last proposal timestamp']]}:{key:'nal',name:'Nexora Assurance Lab',short:'NAL',description:'Durable assurance run scheduling, validation outcomes and release evidence.',cards:[['Total runs','total','Persisted assurance runs'],['Queued','queued','Awaiting a bounded worker'],['Running','running','Currently executing'],['Passed','passed','Successful runs'],['Failed','failed','Failed runs'],['Cancelled','cancelled','Operator-cancelled runs'],['Latest run','latest_run_at','Latest run timestamp']]};
-    const domain=snapshot.subsystems?.[defs.key]||{},sources=defs.key==='nhle'?(snapshot.sources||[]):[];
+    const domain=snapshot.subsystems?.[defs.key]||{},status=domain.status||'unavailable',updated=domain.updated_at||snapshot.generated_at,sources=defs.key==='nhle'?(snapshot.sources||[]):[];
     const cards=defs.cards.map(([label,key,note,unit=''])=>subsystemMetric(label,key.endsWith('_at')&&domain[key]?time(domain[key]):domain[key],note,unit,/fail|quarant|queue/.test(key)&&Number(domain[key])?'amber':'blue')).join('');
     const activity=defs.key==='nhle'?renderStreamRows(sources):`<pre class="json-output subsystem-json">${esc(pretty(domain))}</pre>`;
     const freshnessRows=(defs.key==='nhle'?sources:[]).map(item=>`<tr><td>${esc(item.node_id||'—')}</td><td class="mono">${esc(item.source||defs.short)}</td><td>${syncStatusBadge(item.freshness||status)}</td><td>${metricText(item.freshness_age_ms,' ms')}</td><td>${esc(item.freshness_reason||'Within measured target')}</td><td>${time(item.controller_received_at||item.updated_at)}</td></tr>`);
@@ -472,7 +490,26 @@
     const assurance=monitoringPanel('assurance',`<div class="dashboard-kpi-strip monitoring-kpis">${monitorMetric('NAL total runs',nal.total,'','Persisted assurance runs','cyan')}${monitorMetric('NAL passed',nal.passed,'','Validated runs','green')}${monitorMetric('NAL failed',nal.failed,'','Failed runs',Number(nal.failed)?'red':'green')}${monitorMetric('NAL queued',nal.queued,'','Awaiting bounded worker',Number(nal.queued)?'amber':'blue')}${monitorMetric('NAPI requests',napi.requests_total,'','Synthesis requests','violet')}${monitorMetric('NAPI failures',napi.failures_total,'','Failed synthesis requests',Number(napi.failures_total)?'red':'green')}${monitorMetric('Pending drafts',napi.pending_drafts,'','Approval-gated proposals',Number(napi.pending_drafts)?'amber':'green')}${unavailable('Release readiness','Release evidence is not in the canonical live contract')}</div>${panel('Subsystem health','NAL and NAPI status are part of the same canonical revision.',table(['Subsystem','State','Updated','Latest activity','Interpretation'],[`<tr><td>NAPI</td><td>${syncStatusBadge(napi.status)}</td><td>${time(napi.updated_at)}</td><td>${time(napi.latest_proposal_at)}</td><td>Bounded parser synthesis and draft state</td></tr>`,`<tr><td>NAL</td><td>${syncStatusBadge(nal.status)}</td><td>${time(nal.updated_at)}</td><td>${time(nal.latest_run_at)}</td><td>Durable assurance execution state</td></tr>`]))}`);
     renderPage('monitoring',`<div class="monitoring-head"><div><p class="eyebrow">NLI observability · canonical live telemetry</p><h1>NLI Monitoring</h1><p>Fleet, pipelines, destinations and assurance use one revisioned source of truth. Missing instrumentation remains visible as unavailable.</p></div><div class="monitoring-live">${syncStatusBadge(state.monitoringPaused?'paused':state.streamMode)}<strong>${metricText(snapshot.revision)}</strong><small>canonical revision</small></div></div>${monitoringFilters(allSources)}${monitoringTabs()}${overview}${fleet}${pipeline}${sourceView}${parserView}${destinations}${queues}${infrastructure}${latency}${errors}${assurance}`);
   }
-  function renderSyncSubscriber(){if(!state.user||state.loadingPage||page.dataset.dirty==='true'||!SYNC_PAGES.has(state.page)||state.page==='monitoring'&&state.monitoringPaused)return;if(state.page==='operations')renderLiveOperationsDashboard(syncDashboardSnapshot());else if(state.page==='monitoring')renderMonitoring();else if(state.page==='streams')loadStreams();else if(state.page==='performance')loadPerformance();else if(state.page==='sync-fabric')renderSyncFabric();else renderSubsystemPage(state.page);applyPermissions();}
+  function renderSyncSubscriber({force=false}={}){
+    if(!state.user||state.loadingPage||page.dataset.dirty==='true'||!SYNC_PAGES.has(state.page)||state.page==='monitoring'&&state.monitoringPaused)return;
+    if(state.sync.renderScheduled)return;
+    const signature=syncRenderSignature();
+    if(!force&&signature===state.sync.renderedSignature)return;
+    state.sync.renderScheduled=true;
+    requestAnimationFrame(()=>{
+      state.sync.renderScheduled=false;
+      if(!state.user||state.loadingPage||page.dataset.dirty==='true'||!SYNC_PAGES.has(state.page)||state.page==='monitoring'&&state.monitoringPaused)return;
+      const latest=syncRenderSignature();
+      if(!force&&latest===state.sync.renderedSignature)return;
+      const scrollY=window.scrollY,active=document.activeElement,activeID=active?.id,activeName=active?.getAttribute?.('name'),subsystemTab=page.querySelector('[data-subsystem-tab].active')?.dataset.subsystemTab;
+      if(state.page==='operations')renderLiveOperationsDashboard(syncDashboardSnapshot());else if(state.page==='monitoring')renderMonitoring();else if(state.page==='streams')loadStreams();else if(state.page==='performance')loadPerformance();else if(state.page==='sync-fabric')renderSyncFabric();else renderSubsystemPage(state.page);
+      if(subsystemTab){const tab=[...page.querySelectorAll('[data-subsystem-tab]')].find(item=>item.dataset.subsystemTab===subsystemTab);tab?.click();}
+      const focusTarget=activeID?page.querySelector(`#${CSS.escape(activeID)}`):activeName?[...page.querySelectorAll('[name]')].find(item=>item.getAttribute('name')===activeName):null;
+      if(focusTarget){focusTarget.focus({preventScroll:true});if(typeof active?.selectionStart==='number'&&typeof focusTarget.setSelectionRange==='function')focusTarget.setSelectionRange(active.selectionStart,active.selectionEnd);}
+      window.scrollTo(0,scrollY);
+      applyPermissions();state.sync.renderedSignature=latest;
+    });
+  }
   function applyServerSubsystemUpdate(name,payload) { if(!state.sync.snapshot||!payload||typeof payload!=='object')return;state.sync.snapshot={...state.sync.snapshot,subsystems:{...(state.sync.snapshot.subsystems||{}),[name]:{...(state.sync.snapshot.subsystems?.[name]||{}),...payload}}};state.loadedAt=Date.now();renderSyncSubscriber(); }
 
   function renderLiveOperationsDashboard(snapshot,warnings=[]) {
@@ -996,10 +1033,11 @@
     const url=`/api/v1/sync/stream?last_revision=${encodeURIComponent(state.sync.snapshot?.revision||0)}`,source=new EventSource(url,{withCredentials:true});state.streamSource=source;state.sync.connectionStartedAt=Date.now();
     const receive=(event,eventType)=>{try{const data=JSON.parse(event.data);if(event.lastEventId)state.streamLastEventId=event.lastEventId;acceptSyncSnapshot(data,{incremental:eventType!=='sync_snapshot',eventType});}catch(error){state.sync.rejectedUpdates++;notify(`Synchronization update rejected: ${error.message}`,'error');}};
     source.addEventListener('sync_snapshot',event=>receive(event,'sync_snapshot'));
+    source.addEventListener('sync_heartbeat',event=>receive(event,'sync_heartbeat'));
     source.addEventListener('sync_delta',event=>receive(event,'sync_delta'));
     source.addEventListener('sync_critical',event=>receive(event,'sync_critical'));
-    source.onopen=()=>{state.streamFailures=0;state.streamMode='live';el('stream-state').innerHTML='<i></i>Live sync';renderSyncSubscriber();};
-    source.onerror=()=>{if(!state.user)return;state.streamMode='reconnecting';el('stream-state').innerHTML='<i></i>Reconnecting';state.streamFailures++;source.close();state.streamSource=null;if(state.streamReconnectTimer)clearTimeout(state.streamReconnectTimer);const delay=Math.min(1000*(2**Math.min(state.streamFailures-1,5)),30000);state.streamReconnectTimer=setTimeout(()=>{state.streamReconnectTimer=null;if(state.user)connectStream();},delay);renderSyncSubscriber();};
+    source.onopen=()=>{state.streamFailures=0;state.streamMode='live';el('stream-state').innerHTML='<i></i>Live sync';renderSyncSubscriber({force:true});};
+    source.onerror=()=>{if(!state.user)return;state.streamMode='reconnecting';el('stream-state').innerHTML='<i></i>Reconnecting';state.streamFailures++;source.close();state.streamSource=null;if(state.streamReconnectTimer)clearTimeout(state.streamReconnectTimer);const delay=Math.min(1000*(2**Math.min(state.streamFailures-1,5)),30000);state.streamReconnectTimer=setTimeout(()=>{state.streamReconnectTimer=null;if(state.user)connectStream();},delay);renderSyncSubscriber({force:true});};
   }
 
   async function signOut(notify=true){if(state.socket){state.socket.onclose=null;state.socket.close();state.socket=null;}if(state.streamSource){state.streamSource.close();state.streamSource=null;}if(state.streamPollTimer){clearInterval(state.streamPollTimer);state.streamPollTimer=null;}if(state.streamReconnectTimer){clearTimeout(state.streamReconnectTimer);state.streamReconnectTimer=null;}if(notify){try{await api('/auth/logout',{method:'POST',body:{}});}catch{}}state.user=null;state.csrf='';state.lastAssurance=null;state.live=[];state.polling=false;state.sync={snapshot:null,history:[],browserAppliedAt:0,browserDelayMs:null,rejectedUpdates:0,connectionStartedAt:0,resyncing:false};el('login-form').querySelector('[name=password]').value='';el('app-view').hidden=true;el('auth-view').hidden=false;}
