@@ -173,8 +173,12 @@ func TestCanonicalSyncAPIInitialSnapshotAndVersionedIngest(t *testing.T) {
 		SchemaVersion string                     `json:"schema_version"`
 		Aggregate     telemetry.SyncAggregate    `json:"aggregate"`
 		Subsystems    map[string]json.RawMessage `json:"subsystems"`
+		Controller    struct {
+			Health  string `json:"health"`
+			Version string `json:"version"`
+		} `json:"controller"`
 	}
-	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 4 {
+	if json.Unmarshal(data, &snapshot) != nil || snapshot.SchemaVersion != telemetry.SyncSchemaVersion || snapshot.Aggregate.SourceRecordsReadTotal != 4 || len(snapshot.Subsystems) != 4 || snapshot.Controller.Health != "ok" || snapshot.Controller.Version == "" {
 		t.Fatalf("canonical snapshot mismatch: %s", data)
 	}
 	for _, name := range []string{"nhle", "napi", "nal", "nursf"} {

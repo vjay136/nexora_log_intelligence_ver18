@@ -21,7 +21,10 @@
 Host disk I/O, network throughput, file descriptor use, destination-specific
 acknowledgement latency, and some pipeline-stage latency fields depend on the
 installed platform and adapter. When no real measurement is present, V18 shows
-`Not instrumented` or `Unavailable`. It does not synthesize those measurements.
+`Unavailable` with the exact telemetry boundary. It does not synthesize zeros,
+healthy states, or delivery acknowledgements. Current per-source parse-duration
+samples provide live p50/p95/p99 and source-worker counts; durable histograms
+remain an explicit future schema extension.
 
 Historical charts continue to use bounded, aggregated controller queries. The
 live stream is not treated as an unlimited historical database.

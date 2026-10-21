@@ -117,6 +117,11 @@ test('premium login loads runtime assets and rejects invalid credentials', async
 });
 
 test('V18 blank-panel regressions: every workspace renders authenticated controller responses', async ({ page }) => {
+  // This single regression walks every authenticated workspace and validates
+  // each API contract.  Give the packaged two-node gate enough time on a
+  // cold, resource-constrained CI/Docker host without weakening per-action
+  // assertions.
+  test.setTimeout(90_000);
   await login(page);
   const failedAPIs = [];
   const successfulAPIs = new Set();

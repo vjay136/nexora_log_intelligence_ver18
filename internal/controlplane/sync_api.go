@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"nexora.local/nli-v18/internal/engine"
 	metastore "nexora.local/nli-v18/internal/store"
 	"nexora.local/nli-v18/telemetry"
 )
@@ -32,6 +33,7 @@ func (s *Server) canonicalSyncSnapshot(parent context.Context) map[string]any {
 		"sources":            snapshot.Sources,
 		"diagnostics":        snapshot.Diagnostics,
 		"subsystems":         s.subsystemSyncSnapshot(ctx, snapshot),
+		"controller":         map[string]any{"health": "ok", "version": engine.Version},
 	}
 }
 
@@ -58,7 +60,7 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 		"normalized_per_second": snapshot.Aggregate.NormalizedPerSecond,
 	}
 	requests, _, failures, _ := s.aiMetrics.snapshot()
-	napi := map[string]any{"status": telemetry.FreshnessCollectionFailed, "state": "unavailable", "updated_at": snapshot.GeneratedAt, "requests_total": requests, "failures_total": failures, "pending_drafts": 0}
+	napi := map[string]any{"status": telemetry.FreshnessCollectionFailed, "state": "unavailable", "updated_at": snapshot.GeneratedAt, "requests_total": requests, "failures_total": failures}
 	if docs, err := s.metadata.List(ctx, "ai-proposals", metastore.Query{Limit: 1000}); err == nil {
 		pending := 0
 		var latest time.Time
@@ -82,8 +84,9 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 		}
 	} else {
 		napi["status"] = telemetry.FreshnessCollectionFailed
+		napi["reason"] = "proposal metadata collection failed"
 	}
-	nal := map[string]any{"status": telemetry.FreshnessCollectionFailed, "state": "unavailable", "updated_at": snapshot.GeneratedAt, "total": 0, "queued": 0, "running": 0, "passed": 0, "failed": 0, "cancelled": 0}
+	nal := map[string]any{"status": telemetry.FreshnessCollectionFailed, "state": "unavailable", "updated_at": snapshot.GeneratedAt}
 	if docs, err := s.metadata.List(ctx, "assurance-runs", metastore.Query{Limit: 1000}); err == nil {
 		counts := map[string]int{}
 		var latest time.Time
@@ -117,6 +120,7 @@ func (s *Server) subsystemSyncSnapshot(ctx context.Context, snapshot telemetry.S
 		}
 	} else {
 		nal["status"] = telemetry.FreshnessCollectionFailed
+		nal["reason"] = "assurance run metadata collection failed"
 	}
 	nursfState := "idle"
 	if snapshot.Diagnostics.LiveSources > 0 {

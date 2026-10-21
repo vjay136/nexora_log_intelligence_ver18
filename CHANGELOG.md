@@ -11,6 +11,12 @@
 - Publish one-second in-memory SSE heartbeats without issuing per-subscriber metadata queries; retain ordered source deltas and stale-source classification.
 - Preserve valid zero-source full snapshots, expose client snapshot collection failures, and keep removed sources out of canonical state.
 - Feed Command Center and Monitoring throughput from canonical nested source rates and queues.
+- Publish controller health/version in the canonical snapshot instead of
+  hardcoding browser values, and keep failed NAPI/NAL metadata collections
+  unavailable instead of presenting false zero counts.
+- Derive live parser p50/p95/p99 and source-worker counts from current
+  authenticated source samples while keeping unsupported measurements
+  explicitly unavailable.
 - Coalesce meaningful visual updates in the background while preserving scroll, focus, forms, and active inner tabs; heartbeat-only updates no longer rebuild the page.
 - Add controller, client, and browser regression coverage for live subsystem values, throughput, reconnects, freshness, recovery, sign-out cancellation, and no-shake refresh.
 - Add the Nexora Unified Real-Time Synchronization Fabric (NURSF) as the canonical one-second-target telemetry path.
