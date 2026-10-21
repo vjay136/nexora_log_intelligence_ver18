@@ -7,7 +7,7 @@ This directory documents the only supported V18 release path. It builds source-d
 - Release input must be one clean, committed, frozen Git revision. Dirty or untracked source is refused.
 - Outputs go to `NLI_BUILD_SCRATCH` or an explicit output directory; the repository `dist` directory is never used.
 - `nli_clinet_ver18.rpm` is a byte-identical filename alias of `nli_client_ver18.rpm`. Both contain the same `nli-client` NEVRA and must not be treated as separate packages.
-- Upgrade acceptance uses genuine V16 client and controller RPMs in the V18 release matrix. Historical V8/V10/V12/V14 migration evidence remains separate and requires the corresponding genuine artifacts.
+- Upgrade acceptance uses genuine V17 client and controller RPMs in the V18 release matrix. Historical V8/V10/V12/V14/V15/V16 migration evidence remains separate and requires the corresponding genuine artifacts.
 - The release remains unsigned unless an explicit signing key is supplied. Unsigned output must never be described as signed.
 - Operators receive one `nli-v<version>-<release>-x86_64.tar.gz` archive plus its external `.sha256`. The archive contains `RELEASE_ID`, all RPM/web/operator artifacts, and the complete internal checksum manifest. It must be extracted into a fresh versioned directory.
 
