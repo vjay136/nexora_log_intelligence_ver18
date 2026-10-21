@@ -4,7 +4,7 @@ package protocol
 
 import (
 	"encoding/json"
-	"nexora.local/nli-v17/telemetry"
+	"nexora.local/nli-v18/telemetry"
 	"time"
 )
 

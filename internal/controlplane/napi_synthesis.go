@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"nexora.local/nli-v17/internal/middleware"
-	"nexora.local/nli-v17/internal/registry"
-	metastore "nexora.local/nli-v17/internal/store"
+	"nexora.local/nli-v18/internal/middleware"
+	"nexora.local/nli-v18/internal/registry"
+	metastore "nexora.local/nli-v18/internal/store"
 )
 
 const (

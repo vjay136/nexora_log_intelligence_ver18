@@ -1,11 +1,11 @@
-%{!?nli_version:%global nli_version 17.0.0}
+%{!?nli_version:%global nli_version 18.0.0}
 %{!?nli_release:%global nli_release 2}
 Name:           nli-controller-agent
 Version:        %{nli_version}
 Release:        %{nli_release}%{?dist}
-Summary:        Nexora Log Intelligence Ver17 controller and Web console
+Summary:        Nexora Log Intelligence Ver18 controller and Web console
 License:        LicenseRef-Proprietary
-URL:            https://github.com/vjay136/nexora_log_intelligence_ver17.git
+URL:            https://github.com/vjay136/nexora_log_intelligence_ver18.git
 Source0:        %{name}-%{version}.tar.gz
 ExclusiveArch:  x86_64
 Requires(pre):  shadow-utils
@@ -19,8 +19,8 @@ AutoReqProv:    no
 %global __os_install_post %{nil}
 
 %description
-NLI v17 controller providing authenticated enrollment, fleet synchronization,
-rollouts, telemetry APIs, and the byte-verified webview_ver17 console.
+NLI v18 controller providing authenticated enrollment, fleet synchronization,
+rollouts, telemetry APIs, and the byte-verified webview_ver18 console.
 
 %prep
 %autosetup -n %{name}-%{version}
@@ -30,7 +30,7 @@ rollouts, telemetry APIs, and the byte-verified webview_ver17 console.
 
 %install
 install -d %{buildroot}%{_bindir} %{buildroot}%{_sbindir} %{buildroot}%{_sysconfdir}/nli
-install -d %{buildroot}/usr/lib/systemd/system %{buildroot}%{_datadir}/nli/webview_ver17 %{buildroot}%{_datadir}/nli/supabase
+install -d %{buildroot}/usr/lib/systemd/system %{buildroot}%{_datadir}/nli/webview_ver18 %{buildroot}%{_datadir}/nli/supabase
 install -d %{buildroot}%{_docdir}/%{name} %{buildroot}/var/lib/nli-controller
 install -m 0755 bin/nli-controller-agent bin/nli %{buildroot}%{_bindir}/
 install -m 0755 sbin/nli-controller-setup %{buildroot}%{_sbindir}/nli-controller-setup
@@ -39,9 +39,9 @@ install -m 0755 sbin/nli-admin-reset %{buildroot}%{_sbindir}/nli-admin-reset
 install -m 0644 supabase/nli_schema.sql %{buildroot}%{_datadir}/nli/supabase/nli_schema.sql
 install -m 0640 configs/controller.json configs/controller.env configs/geoip.env %{buildroot}%{_sysconfdir}/nli/
 install -m 0644 systemd/nli-controller-agent.service systemd/nli-controller-bootstrap.service systemd/nli-geoip-update.service systemd/nli-geoip-update.timer %{buildroot}/usr/lib/systemd/system/
-cp -a web/. %{buildroot}%{_datadir}/nli/webview_ver17/
-find %{buildroot}%{_datadir}/nli/webview_ver17 -type d -exec chmod 0755 {} +
-find %{buildroot}%{_datadir}/nli/webview_ver17 -type f -exec chmod 0644 {} +
+cp -a web/. %{buildroot}%{_datadir}/nli/webview_ver18/
+find %{buildroot}%{_datadir}/nli/webview_ver18 -type d -exec chmod 0755 {} +
+find %{buildroot}%{_datadir}/nli/webview_ver18 -type f -exec chmod 0644 {} +
 install -m 0644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 
 %pre
@@ -51,7 +51,7 @@ getent passwd nli >/dev/null || useradd -r -g nli -d /var/lib/nli-controller -s 
 %post
 config_file=%{_sysconfdir}/nli/controller.json
 if grep -Eq '"web_dir"[[:space:]]*:[[:space:]]*"/usr/share/nli/webview_ver[15678]"' "$config_file"; then
-  sed -i -E 's#/usr/share/nli/webview_ver[15678](["/])#/usr/share/nli/webview_ver17\1#g' "$config_file"
+  sed -i -E 's#/usr/share/nli/webview_ver[15678](["/])#/usr/share/nli/webview_ver18\1#g' "$config_file"
 fi
 secret_file=%{_sysconfdir}/nli/controller.env
 chown root:nli "$secret_file"
@@ -86,18 +86,18 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %attr(0644,root,root) /usr/lib/systemd/system/nli-geoip-update.service
 %attr(0644,root,root) /usr/lib/systemd/system/nli-geoip-update.timer
 %dir %attr(0755,root,root) %{_datadir}/nli
-%dir %attr(0755,root,root) %{_datadir}/nli/webview_ver17
-%attr(0644,root,root) %{_datadir}/nli/webview_ver17/*
+%dir %attr(0755,root,root) %{_datadir}/nli/webview_ver18
+%attr(0644,root,root) %{_datadir}/nli/webview_ver18/*
 %dir %attr(0755,root,root) %{_datadir}/nli/supabase
 %attr(0644,root,root) %{_datadir}/nli/supabase/nli_schema.sql
 %dir %attr(0750,nli,nli) /var/lib/nli-controller
 %doc %{_docdir}/%{name}/README.md
 
 %changelog
-* Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 17.0.0-2
+* Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 18.0.0-1
 - Fix canonical subsystem instrumentation, efficient live heartbeats, and background WebView refresh.
 
-* Tue Oct 20 2026 Nexora Engineering <engineering@nexora.local> - 17.0.0-1
+* Tue Oct 20 2026 Nexora Engineering <engineering@nexora.local> - 18.0.0-1
 - Add NURSF canonical real-time synchronization, subsystem monitoring, and Grafana-grade dashboards.
 
 * Mon Oct 19 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-2

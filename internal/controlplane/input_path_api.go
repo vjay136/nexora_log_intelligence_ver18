@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"nexora.local/nli-v17/internal/fleet"
-	"nexora.local/nli-v17/internal/middleware"
-	metastore "nexora.local/nli-v17/internal/store"
+	"nexora.local/nli-v18/internal/fleet"
+	"nexora.local/nli-v18/internal/middleware"
+	metastore "nexora.local/nli-v18/internal/store"
 )
 
 // handleInputPathProfileRollout publishes the currently approved profile as a

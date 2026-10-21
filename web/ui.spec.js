@@ -5,9 +5,9 @@ import { readFile } from 'node:fs/promises';
 // and database availability. e2e.spec.js separately exercises a real controller.
 const origin = 'http://127.0.0.1:4176';
 const tabs = ['operations', 'monitoring', 'streams', 'sync-fabric', 'nhle-monitor', 'napi-monitor', 'nal-monitor', 'assurance', 'parser-workspace', 'api-monitor', 'field-integrity', 'fleet', 'parser-sync', 'clients', 'controller', 'parsers', 'migration', 'input-paths', 'kv', 'static', 'projection', 'studio', 'regex', 'knownkeys', 'semantic', 'engine-network', 'engine-url', 'engine-email', 'engine-subject', 'outputs', 'metadata', 'unknowns', 'drift', 'performance', 'rollouts', 'artifacts', 'security', 'system', 'ai'];
-const assets = Object.fromEntries(await Promise.all(['index.html', 'app.js', 'styles.css', 'nli-mark.svg', 'nexora-logo-v17.png', 'login-banner-v17.png', 'nexora-poster-v17.png'].map(async name => [name, await readFile(new URL(name, import.meta.url))])));
+const assets = Object.fromEntries(await Promise.all(['index.html', 'app.js', 'styles.css', 'nli-mark.svg', 'nexora-logo-v18.png', 'login-banner-v18.png', 'nexora-poster-v18.png'].map(async name => [name, await readFile(new URL(name, import.meta.url))])));
 
-async function mockController(page, { role = 'admin', healthIdentity = 'v17' } = {}) {
+async function mockController(page, { role = 'admin', healthIdentity = 'v18' } = {}) {
   const observed = [];
   const cases = [];
   const uploads = [];
@@ -44,7 +44,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v17' } =
       return fulfill({ passed: true, route: 'normal', actual: { message: requestBody.raw, service: requestBody.service }, parser: { name: 'test-parser', version: '7', strategy: 'json' }, counts: { actual: 2, attempts: 1 }, trace: [{ stage: 'parser_attempt', parser: 'test-parser', success: true, fields: 2 }], evidence_spans: [{ field: 'message', source_backed: true, start: 0, end: requestBody.raw.length }], parser_creation_helper: { normalized_sample: requestBody.raw.replace(/\r\n/g,'\n').split('\n').map(line=>line.replace(/[\t ]+$/,'')).join('\n'), sample_lines: 2, detected_format: 'key_value', requested_family: requestBody.service, selected_parser: 'test-parser', selected_strategy: 'key_value', match_scope: { kind: 'line', prefix: 'level=' }, suggested_regex: 'level=(?P<level>\\S+) user=(?P<user>\\S+)', kv_delimiters: ['='], fields: [{ name: 'level', source: 'group:level', type: 'string' }, { name: 'user', source: 'group:user', type: 'string' }], projection: ['level','user'], template: { level: '{level}', user: '{user}' }, requires_human_approval: true } });
     }
     if (path === '/api/v1/assurance/corpus' && request.method() === 'POST') { const body=request.postDataJSON();assuranceCorpora.push(body);return fulfill({total:body.cases.length,passed:body.cases.length,failed:0,results:[]}); }
-    if (path === '/api/v1/assurance/upload' && request.method() === 'POST') { uploads.push(request.postData() || ''); return fulfill({ retained: true, fixture_id: 'fixture-42', encrypted: true, filename: 'sample.log', content_type: 'text/plain', size_bytes: 28, sha256: 'a'.repeat(64), parser_revision: 'smtp@17.0.0', storage_status: 'encrypted_supabase' }); }
+    if (path === '/api/v1/assurance/upload' && request.method() === 'POST') { uploads.push(request.postData() || ''); return fulfill({ retained: true, fixture_id: 'fixture-42', encrypted: true, filename: 'sample.log', content_type: 'text/plain', size_bytes: 28, sha256: 'a'.repeat(64), parser_revision: 'smtp@18.0.0', storage_status: 'encrypted_supabase' }); }
     if (path === '/api/v1/assurance/cases/fixture-42/download') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'application/octet-stream' }, body: 'service=example user=operator' });
     if (path === '/api/v1/assurance/cases' && request.method() === 'POST') { const body = request.postDataJSON(); cases.push({ id: 'case-1', name: body.name, revision: 1, manual_retention: true, parser_id: 'test-parser', passed: true }); return fulfill(cases.at(-1)); }
     if (path === '/api/v1/assurance/cases') return fulfill({ cases: [{ id: 'fixture-42', name: 'Retained fixture', payload: { name: 'Retained fixture' } }, ...cases] });
@@ -63,7 +63,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v17' } =
     if (path === '/api/v1/admin/ai-provider') return fulfill({ provider: { provider: 'openai', model: 'test-model', configured: false, enabled: false } });
     if (path === '/api/v1/sync/snapshot') return fulfill({ schema_version: 'nli.sync.v1', revision: 7, generated_at: new Date().toISOString(), target_interval_ms: 1000, aggregate: { nli_source_records_read_total: 120, nli_source_bytes_read_total: 4096, nli_parser_records_succeeded_total: 116, nli_parser_records_failed_total: 1, nli_normalized_records_total: 116, nli_quarantined_records_total: 4, nli_queue_depth: 4, read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, bytes_per_second: 4096, backpressure_source_count: 0, nli_telemetry_propagation_delay_seconds_p95: 0.08 }, sources: [{ node_id: 'node-1', source: '/var/log/mail.log', process_generation: 'gen-1', sequence: 7, phase: 'tailing', counters: { nli_source_records_read_total: 120, nli_parser_records_succeeded_total: 116, nli_parser_records_failed_total: 1, nli_normalized_records_total: 116, nli_quarantined_records_total: 4 }, rates: { read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, bytes_per_second: 4096 }, queue: { nli_queue_depth: 4, queue_capacity: 128, backpressure: false }, controller_received_at: new Date().toISOString(), controller_processing_ms: 2, observed_propagation_delay_ms: 80, freshness: 'live', freshness_age_ms: 120, freshness_reason: 'within target', critical: false, diagnostic_codes: [] }], diagnostics: { subscribers: 1, tracked_sources: 1, live: 1, delayed: 0, stale: 0, disconnected: 0, accepted: 7, duplicate: 0, out_of_order: 0, sequence_gaps: 0, reconnects: 0, coalesced: 0, rejected: 0, missed_deadlines: 0, clock_skew: 0, propagation_delay_ms_p50: 35, propagation_delay_ms_p95: 80, propagation_delay_ms_p99: 95, issues: [{ code: 'parser_latency', stage: 'parser', severity: 'warning', component: 'NHLE', node_id: 'node-1', source: '/var/log/mail.log', reason: 'parser latency exceeded warning threshold', recommended_action: 'Inspect parser trace and queue saturation.', last_seen: new Date().toISOString(), occurrences: 1 }] }, subsystems: { nhle: { status: 'live', updated_at: new Date().toISOString(), source_count: 1, active_nodes: 1, records_read_total: 120, normalized_total: 116, quarantined_total: 4, queue_depth: 4, backpressure_sources: 0, read_lines_per_second: 90, normalized_per_second: 87 }, napi: { status: 'live', updated_at: new Date().toISOString(), requests_total: 3, failures_total: 0, pending_drafts: 1, latest_proposal_at: new Date().toISOString() }, nal: { status: 'live', updated_at: new Date().toISOString(), total: 5, queued: 1, running: 1, passed: 3, failed: 0, cancelled: 0, latest_run_at: new Date().toISOString() } } });
     if (path === '/api/v1/sync/stream') return route.fulfill({ status: 200, headers: { ...headers, 'content-type': 'text/event-stream', 'cache-control': 'no-cache' }, body: '' });
-    if (path === '/api/v1/dashboard/snapshot') return fulfill({ overview: { fleet: { total: 1, online: 1 }, metadata: {}, storage: { mode: 'supabase', status: 'connected' } }, metadata: { records: [{ record: { node_id: 'node-1', service: 'smtp-in', parser_id: 'smtp-in/reviewed', route: 'normal', result: 'success', latency_ms: 2, timestamp: '2026-10-17T05:00:00Z' } }], routes: { normal: 1 } }, system: { health: 'ok', version: '17.0.0', storage: { mode: 'supabase', status: 'connected' } }, ai_usage: { requests: 0 }, fleet_sync: { nodes: [{ node: { id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z', issues: [], metrics: { logs_received: 120, logs_parsed: 116, logs_quarantined: 4, parse_rate_pct: 96.67, parse_latency_ms: 2.4, cpu_percent: 18, memory_percent: 31 } }, sync: { drifted: false } }] }, timeseries: { from: '2026-10-17T04:58:00Z', to: '2026-10-17T05:00:00Z', points: [{ timestamp: '2026-10-17T04:59:00Z', logs_received: 60, logs_parsed: 58, logs_quarantined: 2, errors: 1, parse_latency_ms_avg: 2.2 }, { timestamp: '2026-10-17T05:00:00Z', logs_received: 60, logs_parsed: 58, logs_quarantined: 2, errors: 0, parse_latency_ms_avg: 2.6 }], system: { controller_cpu_count: 4, controller_goroutines: 12, controller_memory_alloc_bytes: 33554432 } }, stream_files: [{ node_id: 'node-1', source: '/var/log/nli/input/smtp-in.log', phase: 'tailing', read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, queue_depth: 4, queue_capacity: 128, backpressure: false, read_duration_ns: 1000000, parse_duration_ns: 2000000, output_duration_ns: 3000000, updated_at: '2026-10-17T05:00:00Z' }] });
+    if (path === '/api/v1/dashboard/snapshot') return fulfill({ overview: { fleet: { total: 1, online: 1 }, metadata: {}, storage: { mode: 'supabase', status: 'connected' } }, metadata: { records: [{ record: { node_id: 'node-1', service: 'smtp-in', parser_id: 'smtp-in/reviewed', route: 'normal', result: 'success', latency_ms: 2, timestamp: '2026-10-17T05:00:00Z' } }], routes: { normal: 1 } }, system: { health: 'ok', version: '18.0.0', storage: { mode: 'supabase', status: 'connected' } }, ai_usage: { requests: 0 }, fleet_sync: { nodes: [{ node: { id: 'node-1', hostname: 'mail-node-1', status: 'online', last_seen: '2026-10-17T05:00:00Z', issues: [], metrics: { logs_received: 120, logs_parsed: 116, logs_quarantined: 4, parse_rate_pct: 96.67, parse_latency_ms: 2.4, cpu_percent: 18, memory_percent: 31 } }, sync: { drifted: false } }] }, timeseries: { from: '2026-10-17T04:58:00Z', to: '2026-10-17T05:00:00Z', points: [{ timestamp: '2026-10-17T04:59:00Z', logs_received: 60, logs_parsed: 58, logs_quarantined: 2, errors: 1, parse_latency_ms_avg: 2.2 }, { timestamp: '2026-10-17T05:00:00Z', logs_received: 60, logs_parsed: 58, logs_quarantined: 2, errors: 0, parse_latency_ms_avg: 2.6 }], system: { controller_cpu_count: 4, controller_goroutines: 12, controller_memory_alloc_bytes: 33554432 } }, stream_files: [{ node_id: 'node-1', source: '/var/log/nli/input/smtp-in.log', phase: 'tailing', read_lines_per_second: 90, normalized_per_second: 87, quarantined_per_second: 3, queue_depth: 4, queue_capacity: 128, backpressure: false, read_duration_ns: 1000000, parse_duration_ns: 2000000, output_duration_ns: 3000000, updated_at: '2026-10-17T05:00:00Z' }] });
     if (path === '/api/v1/overview') return fulfill({ fleet: {}, metadata: {}, storage: { mode: 'supabase', status: 'connected' } });
     if (path === '/api/v1/telemetry/stats') return fulfill({ received: 120, parsed: 116, quarantined: 4 });
     if (path === '/api/v1/telemetry/stream/snapshot') return fulfill({ bounded: true, files: [{ node_id: 'node-1', source: '/var/log/mail.log', phase: 'tailing', read_lines_per_second: 90, normalized_per_second: 80, quarantined_per_second: 5, bytes_per_second: 4096, queue_depth: 4, queue_capacity: 128, backpressure: false, read_duration_ns: 1000000, parse_duration_ns: 2000000, output_duration_ns: 3000000, total_duration_ns: 6000000, read_lines: 900, updated_at: '2026-10-14T00:00:00Z', thresholds: { read_lines_per_second: 80, bytes_per_second: 5000, quarantined_per_second: 10, queue_depth: 100 } }] });
@@ -98,7 +98,7 @@ async function mockController(page, { role = 'admin', healthIdentity = 'v17' } =
     if (path === '/api/v1/rbac/roles') return fulfill({ roles: { viewer: ['assurance:run'], admin: ['*'] } });
     if (path === '/api/v1/users') return fulfill({ users: [] });
     if (path === '/api/v1/audit') return fulfill({ verification: 'ok', events: [] });
-    if (path === '/api/v1/system') return fulfill({ version: '17.0.0', health: 'ok', storage: { mode: 'supabase', status: 'connected' }, security: { audit_chain: 'ok' } });
+    if (path === '/api/v1/system') return fulfill({ version: '18.0.0', health: 'ok', storage: { mode: 'supabase', status: 'connected' }, security: { audit_chain: 'ok' } });
     return fulfill({ error: `Unmocked API: ${path}` }, 500);
   });
   return { observed, uploads, assuranceRequests, assuranceCorpora, assurancePlans, assuranceRuns, outputSaves, inputSaves, outputProfiles, inputProfiles, inputRolloutSaves, rolloutSaves };
@@ -179,7 +179,7 @@ test('one canonical synchronization snapshot feeds Command Center, NHLE, NAPI an
   await expect(page.locator('.throughput-gauges')).toContainText('90.0/s');
 });
 
-test('Monitoring exposes eleven canonical dashboards without creating another polling path', async ({ page }) => {
+test('Monitoring exposes eleven canonical dashboards using only the shared recovery path', async ({ page }) => {
   const { observed } = await mockController(page);
   await login(page);
   const before = observed.length;
@@ -202,7 +202,7 @@ test('Monitoring exposes eleven canonical dashboards without creating another po
   await page.getByRole('tab', { name: 'Destinations' }).click();
   await expect(page.locator('[data-monitoring-panel=destinations]')).toContainText('not instrumented');
   const newRequests = observed.slice(before).filter(item => !item.endsWith('/api/v1/sync/stream'));
-  expect(newRequests).toEqual([]);
+  expect(newRequests.every(item => item === 'GET /api/v1/sync/snapshot')).toBe(true);
 });
 
 test('navigation groups command center, assurance, inputs and outputs in the requested order', async ({ page }) => {
@@ -221,13 +221,13 @@ test('navigation groups command center, assurance, inputs and outputs in the req
   expect(ids.indexOf('engine-network')).toBeGreaterThan(ids.indexOf('drift'));
 });
 
-test('premium login keeps the square V17 emblem and banner fully contained on desktop and mobile', async ({ page }) => {
+test('premium login keeps the square V18 emblem and banner fully contained on desktop and mobile', async ({ page }) => {
   await mockController(page);
   await page.goto(origin);
   const lockup=page.locator('.showcase-header .brand-emblem');
   const banner=page.locator('.login-banner-image');
-  await expect(lockup).toHaveAttribute('src','./nexora-poster-v17.png');
-  await expect(banner).toHaveAttribute('src','./login-banner-v17.png');
+  await expect(lockup).toHaveAttribute('src','./nexora-poster-v18.png');
+  await expect(banner).toHaveAttribute('src','./login-banner-v18.png');
   await expect(page.locator('.showcase-header .brand-wordmark b')).toHaveText('Nexora Log Intelligence');
   await expect(page.locator('.showcase-header .brand-wordmark strong')).toHaveText('Nexora');
   await expect.poll(()=>banner.evaluate(image=>image.naturalWidth)).toBeGreaterThan(0);
@@ -321,7 +321,7 @@ test('AI workspace exposes provider, status, results, parser, regex, template an
   }
 });
 
-test('V17 security identity and task navigation remain accessible', async ({ page }) => {
+test('V18 security identity and task navigation remain accessible', async ({ page }) => {
   await mockController(page);
   await page.goto(origin);
   const officialLogo = page.getByAltText('Nexora Log Intelligence logo').first();
@@ -466,9 +466,9 @@ test('equal-revision canonical heartbeat refreshes freshness without replacing t
   await expect(page.locator('#page')).toContainText('3');
 });
 
-test('canonical freshness becomes stale when accepted transport updates stop', async ({ page }) => {
+test('shared snapshot recovery keeps canonical freshness live when SSE heartbeats stop', async ({ page }) => {
   await page.clock.install();
-  await mockController(page);
+  const { observed } = await mockController(page);
   await page.addInitScript(() => {
     class QuietEventSource extends EventTarget {
       constructor(){super();setTimeout(()=>this.onopen?.(),0);}
@@ -479,7 +479,9 @@ test('canonical freshness becomes stale when accepted transport updates stop', a
   await login(page);
   await page.clock.fastForward(6_100);
   await expect(page.locator('#stream-state')).toContainText('Live sync');
-  await expect(page.locator('.stale-banner')).toContainText('synchronization transport is stale');
+  await expect.poll(()=>observed.filter(item=>item==='GET /api/v1/sync/snapshot').length).toBeGreaterThan(1);
+  await expect(page.locator('#freshness')).toContainText('live');
+  await expect(page.locator('.stale-banner')).toHaveCount(0);
 });
 
 test('production Assurance response fills helper using normalized backend proposal and saves a draft', async ({ page }) => {
@@ -541,18 +543,18 @@ test('Parser Creation Workspace builds a complete editable draft without publish
   expect(observed.some(path => /assurance\/parsers\/.*\/(approve|publish)/.test(path))).toBe(false);
 });
 
-test('operations does not fan out after the canonical snapshot is loaded', async ({ page }) => {
+test('operations does not fan out beyond shared canonical recovery', async ({ page }) => {
   const { observed } = await mockController(page);
   await login(page);
   const before = observed.length;
   await page.getByTestId('nav-operations').click();
   const requests = observed.slice(before);
   expect(requests.filter(item => item.startsWith('GET /api/v1/dashboard/snapshot'))).toHaveLength(0);
-  expect(requests.filter(item => item === 'GET /api/v1/sync/snapshot')).toHaveLength(0);
+  expect(requests.filter(item => item === 'GET /api/v1/sync/snapshot').length).toBeLessThanOrEqual(1);
   expect(requests.some(item => /\/api\/v1\/(overview|metadata|system|fleet\/sync|metrics\/timeseries)/.test(item))).toBe(false);
 });
 
-test('missing EventSource never starts a legacy polling path and signout remains clean', async ({ page }) => {
+test('missing EventSource uses shared recovery only and signout aborts it cleanly', async ({ page }) => {
   await page.clock.install();
   const { observed } = await mockController(page);
   await page.addInitScript(() => { window.EventSource = undefined; });
@@ -560,10 +562,10 @@ test('missing EventSource never starts a legacy polling path and signout remains
   await expect(page.getByTestId('nav-streams')).toBeVisible();
   await page.clock.fastForward(5_100);
   expect(observed.filter(item => item === 'GET /api/v1/telemetry/stream/snapshot')).toHaveLength(0);
-  const beforeSignout = observed.filter(item => item === 'GET /api/v1/sync/snapshot').length;
   await page.getByRole('button', { name: 'Sign out' }).click();
+  const afterSignout = observed.filter(item => item === 'GET /api/v1/sync/snapshot').length;
   await page.clock.fastForward(15_000);
-  expect(observed.filter(item => item === 'GET /api/v1/sync/snapshot')).toHaveLength(beforeSignout);
+  expect(observed.filter(item => item === 'GET /api/v1/sync/snapshot')).toHaveLength(afterSignout);
 });
 
 test('API monitor starts its independent probes concurrently and displays latency percentiles', async ({ page }) => {
@@ -571,7 +573,7 @@ test('API monitor starts its independent probes concurrently and displays latenc
   await mockController(page);
   await page.route(`${origin}/api/v1/**`, async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/v1/auth/login' || path === '/api/v1/auth/csrf' || path === '/api/v1/auth/me' || path === '/api/v1/health') return route.fallback();
+    if (path === '/api/v1/auth/login' || path === '/api/v1/auth/csrf' || path === '/api/v1/auth/me' || path === '/api/v1/health' || path === '/api/v1/sync/snapshot' || path === '/api/v1/sync/stream') return route.fallback();
     starts.push(Date.now());
     await new Promise(resolve => setTimeout(resolve, 80));
     await route.fallback();
@@ -684,7 +686,7 @@ test('Assurance enables clear and download immediately and preserves results acr
   await expect(page.locator('#assurance-result')).toContainText('service=test user=operator');
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download result JSON' }).click();
-  expect((await downloadEvent).suggestedFilename()).toBe('nli-v17-assurance-result.json');
+  expect((await downloadEvent).suggestedFilename()).toBe('nli-v18-assurance-result.json');
   await page.getByRole('button', { name: 'Clear manually' }).click();
   await expect(page.getByText('Run a case to inspect complete output', { exact: false })).toBeVisible();
   await expect(page.getByTestId('assurance-raw')).toHaveValue('');
@@ -727,7 +729,7 @@ test('Assurance upload defaults to transient and shows protected retention metad
   await page.getByRole('button', { name: 'Analyze uploaded sample' }).click();
   await expect(page.locator('#assurance-upload-status')).toContainText('encrypted and retained');
   await expect(page.locator('#assurance-upload-status')).toContainText('sample.log');
-  await expect(page.locator('#assurance-upload-status')).toContainText('smtp@17.0.0');
+  await expect(page.locator('#assurance-upload-status')).toContainText('smtp@18.0.0');
   await expect(page.locator('#assurance-upload-status')).toContainText('encrypted_supabase');
   await expect(page.locator('#assurance-upload-status')).toContainText('controller encrypted the fixture');
   expect(uploads).toHaveLength(1);
@@ -738,14 +740,14 @@ test('Assurance upload defaults to transient and shows protected retention metad
   expect((await download).suggestedFilename()).toBe('sample.log');
 });
 
-test('live synchronization avoids dashboard polling and leaves Assurance inputs and results intact', async ({ page }) => {
+test('live recovery avoids dashboard fan-out and leaves Assurance inputs and results intact', async ({ page }) => {
   await page.clock.install();
   const { observed } = await mockController(page);
   await login(page);
   const canonicalSnapshots = observed.filter(item => item === 'GET /api/v1/sync/snapshot').length;
   await page.clock.fastForward(31_000);
   expect(observed.filter(item => item === 'GET /api/v1/dashboard/snapshot')).toHaveLength(0);
-  expect(observed.filter(item => item === 'GET /api/v1/sync/snapshot')).toHaveLength(canonicalSnapshots);
+  expect(observed.filter(item => item === 'GET /api/v1/sync/snapshot').length).toBeGreaterThan(canonicalSnapshots);
   await page.getByTestId('nav-assurance').click();
   await page.getByTestId('assurance-raw').fill('message=keep-me');
   await page.getByRole('button', { name: 'Run assurance', exact: true }).click();

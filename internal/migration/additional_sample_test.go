@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"nexora.local/nli-v17/internal/adapter"
-	"nexora.local/nli-v17/internal/engine"
+	"nexora.local/nli-v18/internal/adapter"
+	"nexora.local/nli-v18/internal/engine"
 )
 
-func TestStandaloneUserSampleLinesExecuteV17Runtime(t *testing.T) {
+func TestStandaloneUserSampleLinesExecuteV18Runtime(t *testing.T) {
 	path := "../../testdata/migration/sample-logs/source/1st_test_sample_logs.txt"
 	file, err := os.Open(path)
 	if err != nil {
@@ -49,12 +49,12 @@ func TestStandaloneUserSampleLinesExecuteV17Runtime(t *testing.T) {
 	}
 }
 
-func TestV17CatalogCopiesAndSampleInventoryAreConsistent(t *testing.T) {
-	canonical, err := os.ReadFile("../../configs/parser-catalog/nli-v17-parser-catalog.json")
+func TestV18CatalogCopiesAndSampleInventoryAreConsistent(t *testing.T) {
+	canonical, err := os.ReadFile("../../configs/parser-catalog/nli-v18-parser-catalog.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	embedded, err := os.ReadFile("../../configs/catalog/nli-v17-parser-catalog.json")
+	embedded, err := os.ReadFile("../../configs/catalog/nli-v18-parser-catalog.json")
 	if err != nil {
 		t.Fatal(err)
 	}

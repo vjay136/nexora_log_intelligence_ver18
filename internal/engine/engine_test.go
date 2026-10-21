@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"nexora.local/nli-v17/internal/engine"
+	"nexora.local/nli-v18/internal/engine"
 )
 
 var deps = engine.Default()

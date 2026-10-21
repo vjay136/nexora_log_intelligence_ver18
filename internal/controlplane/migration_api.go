@@ -20,10 +20,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"nexora.local/nli-v17/internal/middleware"
-	"nexora.local/nli-v17/internal/migration"
-	metastore "nexora.local/nli-v17/internal/store"
-	parserpolicy "nexora.local/nli-v17/parser-policy"
+	"nexora.local/nli-v18/internal/middleware"
+	"nexora.local/nli-v18/internal/migration"
+	metastore "nexora.local/nli-v18/internal/store"
+	parserpolicy "nexora.local/nli-v18/parser-policy"
 )
 
 const (

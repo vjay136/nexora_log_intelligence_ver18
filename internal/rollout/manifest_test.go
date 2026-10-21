@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"nexora.local/nli-v17/internal/protocol"
-	"nexora.local/nli-v17/internal/rollout"
+	"nexora.local/nli-v18/internal/protocol"
+	"nexora.local/nli-v18/internal/rollout"
 )
 
 func signedRolloutManifest(t *testing.T) (protocol.ImmutableManifest, map[string]ed25519.PublicKey, time.Time) {

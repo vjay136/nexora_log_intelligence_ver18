@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	parserpolicy "nexora.local/nli-v17/parser-policy"
+	parserpolicy "nexora.local/nli-v18/parser-policy"
 )
 
 const sampleFieldAccountingReportEnv = "NLI_FIELD_ACCOUNTING_REPORT"

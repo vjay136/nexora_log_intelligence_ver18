@@ -1,6 +1,6 @@
 package migration
 
-import parserpolicy "nexora.local/nli-v17/parser-policy"
+import parserpolicy "nexora.local/nli-v18/parser-policy"
 
 const (
 	ParityUnverified = "unverified"

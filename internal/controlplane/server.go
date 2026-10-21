@@ -22,19 +22,19 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v17/internal/adapter"
-	"nexora.local/nli-v17/internal/auditlog"
-	"nexora.local/nli-v17/internal/auth"
-	"nexora.local/nli-v17/internal/corpusevidence"
-	"nexora.local/nli-v17/internal/engine"
-	"nexora.local/nli-v17/internal/eventstore"
-	"nexora.local/nli-v17/internal/fleet"
-	"nexora.local/nli-v17/internal/middleware"
-	"nexora.local/nli-v17/internal/protocol"
-	"nexora.local/nli-v17/internal/registry"
-	metastore "nexora.local/nli-v17/internal/store"
-	"nexora.local/nli-v17/internal/wsrelay"
-	"nexora.local/nli-v17/telemetry"
+	"nexora.local/nli-v18/internal/adapter"
+	"nexora.local/nli-v18/internal/auditlog"
+	"nexora.local/nli-v18/internal/auth"
+	"nexora.local/nli-v18/internal/corpusevidence"
+	"nexora.local/nli-v18/internal/engine"
+	"nexora.local/nli-v18/internal/eventstore"
+	"nexora.local/nli-v18/internal/fleet"
+	"nexora.local/nli-v18/internal/middleware"
+	"nexora.local/nli-v18/internal/protocol"
+	"nexora.local/nli-v18/internal/registry"
+	metastore "nexora.local/nli-v18/internal/store"
+	"nexora.local/nli-v18/internal/wsrelay"
+	"nexora.local/nli-v18/telemetry"
 )
 
 type Config struct {
@@ -598,7 +598,7 @@ func jsonError(w http.ResponseWriter, message string, status int) {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("X-NLI-Controller", "v17")
+	w.Header().Set("X-NLI-Controller", "v18")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Allow", "POST, OPTIONS")
 	if r.Method == http.MethodOptions {
@@ -707,7 +707,7 @@ func (s *Server) handleNodeRegister(w http.ResponseWriter, r *http.Request) {
 	// A newly enrolled client receives the current active parser asset bundle
 	// without an operator having to create a second rollout manually.
 	if bundle, err := s.buildActiveParserBundle(r.Context()); err == nil {
-		_, _ = s.startParserBundleRollout(r.Context(), "nli-v17-auto-enrollment", "Initial parser asset synchronization", bundle, []string{request.ID})
+		_, _ = s.startParserBundleRollout(r.Context(), "nli-v18-auto-enrollment", "Initial parser asset synchronization", bundle, []string{request.ID})
 	}
 	jsonCreated(w, protocol.RegisterResponse{Status: "registered", NodeID: request.ID, NodeToken: token})
 }
@@ -1059,7 +1059,7 @@ func countActive(items []*rolloutRecord) int {
 	return count
 }
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("X-NLI-Controller", "v17")
+	w.Header().Set("X-NLI-Controller", "v18")
 	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")

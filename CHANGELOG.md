@@ -1,16 +1,18 @@
 # Changelog
 
-## [17.0.0-2] - 2026-10-21
+## [18.0.0-1] - 2026-10-21
 
+- Separate controller transport freshness from per-source activity so idle log
+  files cannot mark the whole WebApp synchronization path stale.
+- Add one shared, abortable one-second snapshot recovery loop for interrupted
+  or proxy-buffered SSE connections; all live workspaces continue to consume
+  the same canonical state without page-wide refresh or per-panel fan-out.
 - Fix canonical subsystem key mapping so NHLE, NAPI, NAL, and NURSF show their authoritative live, ready, or idle state.
 - Publish one-second in-memory SSE heartbeats without issuing per-subscriber metadata queries; retain ordered source deltas and stale-source classification.
 - Preserve valid zero-source full snapshots, expose client snapshot collection failures, and keep removed sources out of canonical state.
 - Feed Command Center and Monitoring throughput from canonical nested source rates and queues.
 - Coalesce meaningful visual updates in the background while preserving scroll, focus, forms, and active inner tabs; heartbeat-only updates no longer rebuild the page.
-- Add controller, client, and browser regression coverage for live subsystem values, throughput, reconnects, freshness, and no-shake refresh.
-
-## [17.0.0-1] - 2026-10-20
-
+- Add controller, client, and browser regression coverage for live subsystem values, throughput, reconnects, freshness, recovery, sign-out cancellation, and no-shake refresh.
 - Add the Nexora Unified Real-Time Synchronization Fabric (NURSF) as the canonical one-second-target telemetry path.
 - Add live NHLE, NAPI, NAL, and Grafana-grade Monitoring workspaces backed by one shared snapshot and incremental SSE store.
 - Add measured freshness, sequence/reconnect handling, bounded diagnostics, root-cause evidence, and responsive premium branding.

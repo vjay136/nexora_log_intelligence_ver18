@@ -54,7 +54,7 @@
     semantic: ['/config/semantic-extraction', 'Semantic extraction policy', { entities: ['ipv4', 'ipv6', 'domain', 'url', 'email'], decode_mime_headers: true, max_input_bytes: 1048576, max_header_bytes: 65536 }],
     outputs: ['/config/output-destinations', 'Output destination profiles', { outputs: [{ type: 'file', path_template: '/var/log/nli/output/auto_normalised_{hour_utc}.jsonl', routes: ['normal', 'warning'] }, { type: 'file', path_template: '/var/log/nli/output/auto_quarantine_{hour_utc}.jsonl', routes: ['quarantine', 'unknown'] }] }],
   };
-  const state = { user: null, csrf: '', page: 'operations', loadedAt: 0, socket: null, streamSource: null, streamMode: 'connecting', reconnect: 1000, streamFailures: 0, live: [], streamLastEventId: '', lastAssurance: null, lastNAPI: null, quarantineDiagnosis: null, controllerReady: false, controllerCheckInFlight: false, proxy: false, polling: false, loadingPage: false, notifications: [], lastRefreshFailure: '', dashboard: null, dashboardRange: '1h', dashboardClient: 'all', monitoringView: 'overview', monitoringRange: '15m', monitoringNode: 'all', monitoringSource: 'all', monitoringSearch: '', monitoringPaused: false, inputHistoryProfile: '', builtinParsers: [], migrationReports: [], assurancePlans: [], aiProposals: [], uploadReport: null, uploadError: '', apiHistory: [], outputPreview: null, streamPollTimer: null, streamReconnectTimer: null, sync: { snapshot: null, history: [], browserAppliedAt: 0, browserDelayMs: null, lastReceivedAt: 0, rejectedUpdates: 0, connectionStartedAt: 0, resyncing: false, renderedSignature: null, renderScheduled: false } };
+  const state = { user: null, csrf: '', page: 'operations', loadedAt: 0, socket: null, streamSource: null, streamMode: 'connecting', reconnect: 1000, streamFailures: 0, live: [], streamLastEventId: '', lastAssurance: null, lastNAPI: null, quarantineDiagnosis: null, controllerReady: false, controllerCheckInFlight: false, proxy: false, polling: false, loadingPage: false, notifications: [], lastRefreshFailure: '', dashboard: null, dashboardRange: '1h', dashboardClient: 'all', monitoringView: 'overview', monitoringRange: '15m', monitoringNode: 'all', monitoringSource: 'all', monitoringSearch: '', monitoringPaused: false, inputHistoryProfile: '', builtinParsers: [], migrationReports: [], assurancePlans: [], aiProposals: [], uploadReport: null, uploadError: '', apiHistory: [], outputPreview: null, streamPollTimer: null, streamReconnectTimer: null, sync: { snapshot: null, history: [], browserAppliedAt: 0, browserDelayMs: null, lastReceivedAt: 0, pollInFlight: false, pollController: null, pollFailures: 0, rejectedUpdates: 0, connectionStartedAt: 0, resyncing: false, renderedSignature: null, renderScheduled: false } };
   const el = id => document.getElementById(id);
   const FORM_PERMISSIONS = {
     'assurance-save-form': 'assurance:save',
@@ -207,9 +207,13 @@
   const CONTROLLER_REQUIRED = 'This is a visual-only WebView copy. Open the same-origin URL served by nli-controller-agent.';
   async function fetchWithTimeout(url, options = {}, timeoutMs = 5000) {
     const controller = new AbortController();
+    const externalSignal = options.signal;
+    const forwardAbort = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) forwardAbort();
+    else externalSignal?.addEventListener('abort', forwardAbort, { once: true });
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try { return await fetch(url, { ...options, signal: controller.signal }); }
-    finally { clearTimeout(timer); }
+    finally { clearTimeout(timer); externalSignal?.removeEventListener('abort', forwardAbort); }
   }
   async function ensureCSRF() {
     if (state.csrf) return state.csrf;
@@ -225,7 +229,7 @@
     if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && path !== '/auth/login') headers['X-CSRF-Token'] = await ensureCSRF();
     const started = performance.now();
     let response;
-    try { response = await fetchWithTimeout('/api/v1' + path, { method, credentials: 'same-origin', headers, body }, 55000); }
+    try { response = await fetchWithTimeout('/api/v1' + path, { method, credentials: 'same-origin', headers, body, signal: options.signal }, 55000); }
     catch (error) { recordAPI(path, method, null, performance.now() - started, error.message); throw error; }
     recordAPI(path, method, response.status, performance.now() - started, response.ok ? '' : response.statusText);
     const contentType = response.headers.get('content-type') || '';
@@ -278,13 +282,13 @@
     const contentType = healthResponse.headers.get('content-type') || '';
     const health = contentType.includes('application/json') ? await healthResponse.json().catch(() => null) : null;
     const identity = healthResponse.headers.get('x-nli-controller');
-    if (!healthResponse.ok || identity !== 'v17' || health?.service !== 'nli-controller-agent' || health?.api_version !== 'v1') {
-      throw new Error(health?.error || 'This address is not a Nexora Log Intelligence Ver17 controller. Open the Ver17 WebView or configure the controller connection.');
+    if (!healthResponse.ok || identity !== 'v18' || health?.service !== 'nli-controller-agent' || health?.api_version !== 'v1') {
+      throw new Error(health?.error || 'This address is not a Nexora Log Intelligence Ver18 controller. Open the Ver18 WebView or configure the controller connection.');
     }
     state.proxy = healthResponse.headers.get('x-nli-upstream') === 'controller';
     const loginResponse = await fetchWithTimeout('/api/v1/auth/login', { method: 'OPTIONS', credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' });
     const allow = loginResponse.headers.get('allow') || '';
-    if (!loginResponse.ok || loginResponse.headers.get('x-nli-controller') !== 'v17' || !allow.split(',').map(value => value.trim().toUpperCase()).includes('POST')) {
+    if (!loginResponse.ok || loginResponse.headers.get('x-nli-controller') !== 'v18' || !allow.split(',').map(value => value.trim().toUpperCase()).includes('POST')) {
       throw new Error('The NLI controller does not advertise a compatible login API. Upgrade the controller RPM.');
     }
     return health;
@@ -342,12 +346,15 @@
   }
   function updateFreshness() {
     const sync=state.sync.snapshot,stamp=sync?.generated_at||sync?.aggregate?.nli_telemetry_last_success_timestamp;
-    const canonicalAge=stamp?Math.max(0,Math.floor((Date.now()-Date.parse(stamp))/1000)):(state.loadedAt?Math.floor((Date.now()-state.loadedAt)/1000):null),transportAge=state.sync.lastReceivedAt?Math.max(0,Math.floor((Date.now()-state.sync.lastReceivedAt)/1000)):null,age=canonicalAge===null?transportAge:transportAge===null?canonicalAge:Math.max(canonicalAge,transportAge),target=Math.max(250,Number(sync?.target_interval_ms||1000));
-    const freshness=age==null?'unavailable':age*1000<=target*1.5?'live':age*1000<=target*3?'delayed':'stale';
+    const canonicalAge=stamp&&Number.isFinite(Date.parse(stamp))?Math.max(0,Math.floor((Date.now()-Date.parse(stamp))/1000)):null,transportAge=state.sync.lastReceivedAt?Math.max(0,Math.floor((Date.now()-state.sync.lastReceivedAt)/1000)):null,age=transportAge??canonicalAge??(state.loadedAt?Math.floor((Date.now()-state.loadedAt)/1000):null),target=Math.max(250,Number(sync?.target_interval_ms||1000));
+    // The page transport is authoritative for global freshness. An idle source can
+    // have an old event timestamp while the controller connection remains healthy;
+    // source-level freshness continues to expose that condition independently.
+    const freshness=age==null?'unavailable':age*1000<=Math.max(3000,target*3)?'live':age*1000<=Math.max(15000,target*15)?'reconnecting':'stale';
     el('freshness').textContent=age===null?'Not loaded':`${freshness} · ${age}s old`;
     const stale=freshness==='stale';document.body.classList.toggle('stale',stale);
     const banner=page.querySelector('.stale-banner');
-    if(stale&&!banner)page.insertAdjacentHTML('afterbegin',`<div class="stale-banner">Canonical telemetry or its synchronization transport is stale (${age}s since the latest authoritative update). Last-known values remain visible and are not treated as live.</div>`);
+    if(stale&&!banner)page.insertAdjacentHTML('afterbegin',`<div class="stale-banner">Live synchronization is unavailable (${age}s since the controller last answered). The shared background recovery path is retrying automatically.</div>`);
     if(!stale&&banner)banner.remove();
   }
 
@@ -371,6 +378,33 @@
   function requestSyncResnapshot(reason='revision gap') {
     if(state.sync.resyncing||!state.user)return;state.sync.resyncing=true;state.streamMode='resynchronizing';el('stream-state').innerHTML='<i></i>Resynchronizing';
     api('/sync/snapshot').then(snapshot=>{state.sync.snapshot=null;acceptSyncSnapshot(snapshot,{force:true});}).catch(error=>notify(`Canonical resynchronization failed after ${reason}: ${error.message}`,'error')).finally(()=>{state.sync.resyncing=false;});
+  }
+  async function pollCanonicalSnapshot(reason='background recovery') {
+    if(!state.user||state.sync.pollInFlight)return false;
+    state.sync.pollInFlight=true;const controller=new AbortController();state.sync.pollController=controller;
+    try{
+      const snapshot=await api('/sync/snapshot',{signal:controller.signal});
+      if(!state.user||controller.signal.aborted)return false;
+      acceptSyncSnapshot(snapshot,{force:false,eventType:'sync_poll'});
+      state.sync.pollFailures=0;
+      if(state.streamMode!=='live')state.streamMode='polling';
+      el('stream-state').innerHTML='<i></i>Live sync · recovery';
+      return true;
+    }catch(error){
+      if(controller.signal.aborted)return false;
+      state.sync.pollFailures++;
+      if(state.sync.pollFailures===1||state.sync.pollFailures%10===0)notify(`Live synchronization recovery failed (${reason}): ${error.message}`,'error');
+      return false;
+    }finally{if(state.sync.pollController===controller)state.sync.pollController=null;state.sync.pollInFlight=false;updateFreshness();}
+  }
+  function startSyncFallback() {
+    if(state.streamPollTimer)return;
+    state.streamPollTimer=setInterval(()=>{
+      if(!state.user||document.hidden)return;
+      const target=Math.max(1000,Number(state.sync.snapshot?.target_interval_ms||1000));
+      const age=state.sync.lastReceivedAt?Date.now()-state.sync.lastReceivedAt:Number.POSITIVE_INFINITY;
+      if(state.streamMode!=='live'||age>Math.max(3000,target*3))pollCanonicalSnapshot(state.streamMode==='live'?'heartbeat overdue':'stream reconnecting');
+    },1000);
   }
   function acceptSyncSnapshot(raw,{incremental=false,eventType='sync_snapshot',force=false}={}) {
     const incoming=raw?.snapshot||raw;if(!incoming||typeof incoming!=='object')return false;
@@ -411,7 +445,7 @@
     const sync=state.sync.snapshot||{},aggregate=sync.aggregate||{},history=state.sync.history.slice(-60),sources=sync.sources||[],diagnostics=sync.diagnostics||{};
     const nodes=[...new Set(sources.map(item=>item.node_id).filter(Boolean))].map(id=>{const nodeSources=sources.filter(item=>item.node_id===id),latest=nodeSources.map(item=>item.controller_received_at||item.updated_at).filter(Boolean).sort().at(-1);return {id,hostname:id,status:nodeSources.some(item=>['stale','disconnected','collection_failed'].includes(item.freshness))?'degraded':'online',last_seen:latest,issues:nodeSources.flatMap(item=>item.diagnostic_codes||[]),metrics:{logs_received:nodeSources.reduce((n,item)=>n+Number(sourceValue(item,'nli_source_records_read_total')||0),0),logs_parsed:nodeSources.reduce((n,item)=>n+Number(sourceValue(item,'nli_parser_records_succeeded_total')||0),0),logs_quarantined:nodeSources.reduce((n,item)=>n+Number(sourceValue(item,'nli_quarantined_records_total')||0),0),parse_latency_ms:Number(diagnostics.propagation_delay_ms_p95||diagnostics.p95_ms||0)}};});
     const streamFiles=sources.map(item=>({...item,read_lines_per_second:sourceValue(item,'read_lines_per_second'),normalized_per_second:sourceValue(item,'normalized_per_second'),quarantined_per_second:sourceValue(item,'quarantined_per_second'),queue_depth:sourceValue(item,'queue_depth')??sourceValue(item,'nli_queue_depth'),queue_capacity:sourceValue(item,'queue_capacity'),backpressure:sourceValue(item,'backpressure'),read_duration_ns:sourceValue(item,'read_duration_ns'),parse_duration_ns:sourceValue(item,'parse_duration_ns'),output_duration_ns:sourceValue(item,'output_duration_ns')}));
-    return {canonical_aggregate:aggregate,overview:{fleet:{total:nodes.length,online:nodes.filter(item=>item.status==='online').length}},metadata:{records:[],routes:{}},system:{health:'ok',version:'17.0.0'},fleet_sync:{nodes:nodes.map(node=>({node}))},timeseries:{from:history[0]?.timestamp,to:history.at(-1)?.timestamp,points:history.map(item=>({timestamp:item.timestamp,logs_received:item.received,logs_parsed:item.parsed,logs_quarantined:item.quarantine,errors:item.errors,parse_latency_ms_avg:item.latency}))},stream_files:streamFiles,sync_diagnostics:diagnostics};
+    return {canonical_aggregate:aggregate,overview:{fleet:{total:nodes.length,online:nodes.filter(item=>item.status==='online').length}},metadata:{records:[],routes:{}},system:{health:'ok',version:'18.0.0'},fleet_sync:{nodes:nodes.map(node=>({node}))},timeseries:{from:history[0]?.timestamp,to:history.at(-1)?.timestamp,points:history.map(item=>({timestamp:item.timestamp,logs_received:item.received,logs_parsed:item.parsed,logs_quarantined:item.quarantine,errors:item.errors,parse_latency_ms_avg:item.latency}))},stream_files:streamFiles,sync_diagnostics:diagnostics};
   }
   function issueRows(scope='') {
     const snapshot=state.sync.snapshot||{},issues=[...(snapshot.diagnostics?.issues||[])];
@@ -594,7 +628,7 @@
     const selectedParser = state.lastAssurance?.request?.parser_id || 'auto';
     const retentionError = casesResult.status === 'rejected' ? casesResult.reason.message : '';
     const current = state.lastAssurance?.result;
-    const defaultPlan={objective:'Certify a parser revision and its bounded runtime contracts',environment:'synthetic-lab',dataset:'retained-fixture-id',target_version:'17.0.0',parser_versions:['imap@1'],required_features:['parser-assurance'],scenarios:['parser-regression','failure-recovery','replay','destination-integration','performance','security'],expected_results:['all local checks pass'],pass_criteria:['zero unexpected quarantine','all expected fields equal','bounded evidence contains no raw fixture'],timeouts:{run_seconds:60},resource_limits:{max_records:1000},cleanup:['purge transient sample'],evidence:['result JSON','parser revision hash','scenario checks'],approvals:['parser-engineer']};
+    const defaultPlan={objective:'Certify a parser revision and its bounded runtime contracts',environment:'synthetic-lab',dataset:'retained-fixture-id',target_version:'18.0.0',parser_versions:['imap@1'],required_features:['parser-assurance'],scenarios:['parser-regression','failure-recovery','replay','destination-integration','performance','security'],expected_results:['all local checks pass'],pass_criteria:['zero unexpected quarantine','all expected fields equal','bounded evidence contains no raw fixture'],timeouts:{run_seconds:60},resource_limits:{max_records:1000},cleanup:['purge transient sample'],evidence:['result JSON','parser revision hash','scenario checks'],approvals:['parser-engineer']};
     const plansPanel=panel('Versioned Assurance test plans','Build bounded, declarative plans for repeatable parser certification. Each save creates an immutable revision; execution and production promotion remain separately approval gated.',`<form id="assurance-plan-form" class="form-grid"><input type="hidden" name="edit_id"><label class="field">Plan ID<input name="id" required value="parser-certification"></label><label class="field">Name<input name="name" required value="Parser certification"></label><label class="field">Version<input name="version" required value="1.0.0"></label><label class="field wide">Declarative plan JSON<textarea name="plan" required>${esc(pretty(defaultPlan))}</textarea></label><div class="actions wide"><button class="primary" type="submit">Save test-plan revision</button><button class="secondary" type="button" data-action="assurance-plan-reset">New plan</button></div></form>${plansResult.status==='rejected'?`<div class="callout warn">Test plans unavailable: ${esc(plansResult.reason.message)}</div>`:table(['Plan','Version','Revision','State','Actions'],plans.map(doc=>{const p=doc.payload||{};return `<tr><td><b>${esc(p.name||doc.id)}</b><br><small class="mono">${esc(doc.id)}</small></td><td>${esc(p.version||'—')}</td><td>${number(doc.revision)}</td><td>${badge(doc.state||'active')}</td><td><button class="secondary small" data-action="assurance-plan-edit" data-id="${esc(doc.id)}">Edit revision</button> <button class="secondary small" data-action="assurance-plan-download" data-id="${esc(doc.id)}">Download JSON</button> <button class="danger small" data-action="assurance-plan-delete" data-id="${esc(doc.id)}">Delete</button></td></tr>`;}),'No Assurance test plans have been created yet.')}`);
     const napiDiscovery=[{raw:'level=INFO user=alice',service:'auto',desired:{level:'INFO',user:'alice'}},{raw:'level=WARN user=bob',service:'auto',desired:{level:'WARN',user:'bob'}}],napiHeldOut=[{raw:'level=ERROR user=carol',service:'auto',desired:{level:'ERROR',user:'carol'}}];
     const napiPanel=panel('NAPI parser synthesis','Generate bounded declarative candidates from separate discovery and held-out samples. The controller performs RE2 safety and negative false-positive checks, stores no raw samples, and saves only a review-gated draft.',`<form id="napi-synthesis-form" class="form-grid" data-testid="napi-synthesis-form"><label class="field">Parser ID<input name="id" value="napi-guided-parser" required></label><label class="field">Name<input name="name" value="NAPI guided parser" required></label><label class="field">Version<input name="version" value="0.1.0" required></label><label class="field">Candidate limit<input name="candidate_limit" type="number" min="1" max="8" value="4" required></label><label class="field wide">Discovery samples JSON<textarea name="discovery" required>${esc(pretty(napiDiscovery))}</textarea></label><label class="field wide">Independent held-out samples JSON<textarea name="held_out" required>${esc(pretty(napiHeldOut))}</textarea></label><label class="field wide">Negative raw samples JSON<textarea name="negative">[]</textarea></label><div class="actions wide"><button class="primary" type="submit">Synthesize and validate draft</button></div></form>${state.lastNAPI?panel('Latest synthesis evidence','Review the selected candidate, safety report, validation metrics, provenance and limitations. Production activation still requires independent approval.',`<pre class="json-output" data-testid="napi-synthesis-result">${esc(pretty(state.lastNAPI))}</pre>`):'<div class="empty-state">No synthesis has run in this browser session.</div>'}`);
@@ -991,7 +1025,7 @@
       case 'download-migration-report': { const report=state.migrationReports.find(item=>String(item.id)===id);if(!report)throw new Error('Migration report is no longer in the current snapshot.');downloadJSON(`${id}-migration-report.json`,report.payload||report);break; }
       case 'save-assurance': { const form=button.closest('form');if(!form?.reportValidity())break;if(!state.lastAssurance)throw new Error('Run assurance first');const data=formObject(form);await api('/assurance/cases',{method:'POST',body:{id:data.id,name:data.name,description:data.description,retain:true,case:state.lastAssurance.request}});toast('Encrypted fixture retained');await navigate('assurance');page.querySelector('[data-assurance-tab=fixtures]')?.click();break; }
       case 'clear-assurance': state.lastAssurance = null; await navigate('assurance'); break;
-      case 'download-assurance': if(state.lastAssurance){downloadJSON('nli-v17-assurance-result.json', state.lastAssurance);} break;
+      case 'download-assurance': if(state.lastAssurance){downloadJSON('nli-v18-assurance-result.json', state.lastAssurance);} break;
       case 'show-corpus': { const text=prompt('Paste a JSON array of assurance cases');if(!text)return;const result=await api('/assurance/corpus',{method:'POST',body:{cases:parseJSON(text,'Corpus JSON')}});el('assurance-result').innerHTML=panel('Corpus result','Corpus result is transient; run and retain individual cases for persistence.',`<pre class="json-output">${esc(pretty(result))}</pre>`);break; }
       case 'assurance-parser-action': { const progress=notify(`${value} parser proposal…`,'progress');try{const body=value==='validate'?{}:{};const result=await api(`/assurance/parsers/${encodeURIComponent(id)}/${value}`,{method:'POST',body});notify(`Parser ${value} completed${result.validation?.score!=null?` · score ${result.validation.score}`:''}`);await navigate('assurance');}catch(error){progress.fail(error.message);throw error;}break; }
       case 'create-candidate-parser': { const candidate=state.lastAssurance?.result?.candidate_parser;if(!candidate)throw new Error('No parser candidate is available');const parser=candidate.parser||candidate;const result=await api('/assurance/parsers',{method:'POST',body:{name:candidate.name||'Assurance candidate',version:candidate.version||'0.1.0',parser,cases:[state.lastAssurance.request]}});notify(`Candidate draft created · validation ${result.validation?.score??'pending'}%`);await navigate('assurance');break; }
@@ -1003,8 +1037,8 @@
       case 'rollout-approve': await api(`/rollouts/${encodeURIComponent(id)}/approve`,{method:'POST',body:{}});toast('Rollout approved and launched');await navigate('rollouts');break;
       case 'rollout-cancel': await api(`/rollouts/${encodeURIComponent(id)}/cancel`,{method:'POST',body:{}});toast('Rollout cancelled');await navigate('rollouts');break;
       case 'purge-case': if(confirm('Permanently purge this encrypted fixture and every revision?')){await api(`/assurance/cases/${encodeURIComponent(id)}`,{method:'DELETE',body:{}});toast('Fixture purged');await navigate('assurance');}break;
-      case 'download-case': { const progress=notify('Downloading retained fixture…','progress');try{const response=await fetchWithTimeout(`/api/v1/assurance/cases/${encodeURIComponent(id)}/download`,{credentials:'same-origin',headers:{Accept:'text/plain, application/octet-stream'}},55000);if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||`Download failed (${response.status})`);}const blob=await response.blob();downloadBlob(`nli-v17-case-${id}.log`,blob);notify('Retained fixture downloaded');}catch(error){progress.fail(error.message);throw error;}break; }
-      case 'download-upload-fixture': { const progress=notify('Downloading retained sample from the authenticated controller…','progress');try{if(!id)throw new Error('The controller did not return a retained fixture ID.');const response=await fetchWithTimeout(`/api/v1/assurance/cases/${encodeURIComponent(id)}/download`,{credentials:'same-origin',headers:{Accept:'text/plain, application/octet-stream'}},55000);if(!response.ok){const result=await response.json().catch(()=>({}));throw new Error(result.error||`Authenticated fixture download failed (${response.status})`);}downloadBlob(button.dataset.filename||`nli-v17-fixture-${id}.log`,await response.blob());notify('Retained fixture downloaded through the controller');}catch(error){progress.fail(error.message);throw error;}break; }
+      case 'download-case': { const progress=notify('Downloading retained fixture…','progress');try{const response=await fetchWithTimeout(`/api/v1/assurance/cases/${encodeURIComponent(id)}/download`,{credentials:'same-origin',headers:{Accept:'text/plain, application/octet-stream'}},55000);if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||`Download failed (${response.status})`);}const blob=await response.blob();downloadBlob(`nli-v18-case-${id}.log`,blob);notify('Retained fixture downloaded');}catch(error){progress.fail(error.message);throw error;}break; }
+      case 'download-upload-fixture': { const progress=notify('Downloading retained sample from the authenticated controller…','progress');try{if(!id)throw new Error('The controller did not return a retained fixture ID.');const response=await fetchWithTimeout(`/api/v1/assurance/cases/${encodeURIComponent(id)}/download`,{credentials:'same-origin',headers:{Accept:'text/plain, application/octet-stream'}},55000);if(!response.ok){const result=await response.json().catch(()=>({}));throw new Error(result.error||`Authenticated fixture download failed (${response.status})`);}downloadBlob(button.dataset.filename||`nli-v18-fixture-${id}.log`,await response.blob());notify('Retained fixture downloaded through the controller');}catch(error){progress.fail(error.message);throw error;}break; }
       case 'navigate': await navigate(button.dataset.page);break;
       case 'quarantine-diagnose': {const response=await fetchWithTimeout(`/api/v1/quarantine/records/${encodeURIComponent(id)}/raw`,{credentials:'same-origin',headers:{Accept:'text/plain'}},55000);if(!response.ok){const result=await response.json().catch(()=>({}));throw new Error(result.error||`Exact raw record unavailable (${response.status})`);}const raw=await response.text();state.lastAssurance={request:{raw,service:button.dataset.service||'auto',parser_id:'',source:`quarantine:${id}`,desired:{},field_mapping:{}},result:null};await navigate('assurance');toast('Retained source loaded into Assurance');break;}
       case 'quarantine-raw': { const response=await fetchWithTimeout(`/api/v1/quarantine/records/${encodeURIComponent(id)}/raw`,{credentials:'same-origin',headers:{Accept:'text/plain, application/octet-stream'}},55000);if(!response.ok){const result=await response.json().catch(()=>({}));throw new Error(result.error||`Raw record download failed (${response.status})`);}downloadBlob(`nli-quarantine-${id}.log`,await response.blob());toast('Exact retained source line downloaded');break; }
@@ -1025,10 +1059,11 @@
 
   async function connectStream() {
     if(!state.user)return;
+    startSyncFallback();
     const protocol=location.protocol==='https:'?'wss':'ws';
     if(!state.socket||state.socket.readyState>1){const socket=new WebSocket(`${protocol}://${location.host}/api/v1/stream`);state.socket=socket;socket.onmessage=event=>{try{const data=JSON.parse(event.data);if(data.type==='ai_provider_changed'){notify(`AI provider status: ${data.status||'updated'}`);if(data.napi||data.subsystem)applyServerSubsystemUpdate('napi',data.napi||data.subsystem);if(state.page==='ai')navigate('ai');return;}if(data.type==='ai_proposal_changed'){notify(`AI remediation ${data.id||''}: ${data.status||'updated'}`);if(data.napi||data.subsystem)applyServerSubsystemUpdate('napi',data.napi||data.subsystem);if(state.page==='assurance')navigate('assurance');return;}if(data.type==='assurance_run_changed'){if(data.nal||data.subsystem)applyServerSubsystemUpdate('nal',data.nal||data.subsystem);if(state.page==='assurance')navigate('assurance');return;}state.live.unshift(data);state.live=state.live.slice(0,200);if(state.page==='metadata'){const target=el('live-records');if(target)target.innerHTML=renderMetadataRows(state.live);}}catch{}};}
     if(!state.sync.snapshot){try{acceptSyncSnapshot(await api('/sync/snapshot'));}catch(error){state.streamMode='snapshot unavailable';notify(`Canonical synchronization snapshot failed: ${error.message}`,'error');}}
-    if(typeof EventSource!=='function'){state.streamMode='unavailable';el('stream-state').textContent='Streaming unavailable';return;}
+    if(typeof EventSource!=='function'){state.streamMode='polling';el('stream-state').textContent='Live sync · recovery';await pollCanonicalSnapshot('streaming unsupported');return;}
     if(state.streamSource)return;
     const url=`/api/v1/sync/stream?last_revision=${encodeURIComponent(state.sync.snapshot?.revision||0)}`,source=new EventSource(url,{withCredentials:true});state.streamSource=source;state.sync.connectionStartedAt=Date.now();
     const receive=(event,eventType)=>{try{const data=JSON.parse(event.data);if(event.lastEventId)state.streamLastEventId=event.lastEventId;acceptSyncSnapshot(data,{incremental:eventType!=='sync_snapshot',eventType});}catch(error){state.sync.rejectedUpdates++;notify(`Synchronization update rejected: ${error.message}`,'error');}};
@@ -1037,10 +1072,10 @@
     source.addEventListener('sync_delta',event=>receive(event,'sync_delta'));
     source.addEventListener('sync_critical',event=>receive(event,'sync_critical'));
     source.onopen=()=>{state.streamFailures=0;state.streamMode='live';el('stream-state').innerHTML='<i></i>Live sync';renderSyncSubscriber({force:true});};
-    source.onerror=()=>{if(!state.user)return;state.streamMode='reconnecting';el('stream-state').innerHTML='<i></i>Reconnecting';state.streamFailures++;source.close();state.streamSource=null;if(state.streamReconnectTimer)clearTimeout(state.streamReconnectTimer);const delay=Math.min(1000*(2**Math.min(state.streamFailures-1,5)),30000);state.streamReconnectTimer=setTimeout(()=>{state.streamReconnectTimer=null;if(state.user)connectStream();},delay);renderSyncSubscriber({force:true});};
+    source.onerror=()=>{if(!state.user)return;state.streamMode='reconnecting';el('stream-state').innerHTML='<i></i>Reconnecting · recovery active';state.streamFailures++;source.close();state.streamSource=null;pollCanonicalSnapshot('event stream interrupted');if(state.streamReconnectTimer)clearTimeout(state.streamReconnectTimer);const delay=Math.min(1000*(2**Math.min(state.streamFailures-1,5)),30000);state.streamReconnectTimer=setTimeout(()=>{state.streamReconnectTimer=null;if(state.user)connectStream();},delay);renderSyncSubscriber({force:true});};
   }
 
-  async function signOut(notify=true){if(state.socket){state.socket.onclose=null;state.socket.close();state.socket=null;}if(state.streamSource){state.streamSource.close();state.streamSource=null;}if(state.streamPollTimer){clearInterval(state.streamPollTimer);state.streamPollTimer=null;}if(state.streamReconnectTimer){clearTimeout(state.streamReconnectTimer);state.streamReconnectTimer=null;}if(notify){try{await api('/auth/logout',{method:'POST',body:{}});}catch{}}state.user=null;state.csrf='';state.lastAssurance=null;state.live=[];state.polling=false;state.sync={snapshot:null,history:[],browserAppliedAt:0,browserDelayMs:null,rejectedUpdates:0,connectionStartedAt:0,resyncing:false};el('login-form').querySelector('[name=password]').value='';el('app-view').hidden=true;el('auth-view').hidden=false;}
+  async function signOut(notify=true){if(state.socket){state.socket.onclose=null;state.socket.close();state.socket=null;}if(state.streamSource){state.streamSource.close();state.streamSource=null;}if(state.streamPollTimer){clearInterval(state.streamPollTimer);state.streamPollTimer=null;}if(state.streamReconnectTimer){clearTimeout(state.streamReconnectTimer);state.streamReconnectTimer=null;}state.sync.pollController?.abort();state.user=null;if(notify){try{await api('/auth/logout',{method:'POST',body:{}});}catch{}}state.csrf='';state.lastAssurance=null;state.live=[];state.polling=false;state.sync={snapshot:null,history:[],browserAppliedAt:0,browserDelayMs:null,lastReceivedAt:0,pollInFlight:false,pollController:null,pollFailures:0,rejectedUpdates:0,connectionStartedAt:0,resyncing:false,renderedSignature:null,renderScheduled:false};el('login-form').querySelector('[name=password]').value='';el('app-view').hidden=true;el('auth-view').hidden=false;}
   async function boot(user){state.user=user;buildNav();el('identity-name').textContent=user.username;el('identity-role').textContent=user.role;el('auth-view').hidden=true;el('app-view').hidden=false;await ensureCSRF();await connectStream();await navigate(location.hash.slice(1)||'operations');}
 
   el('login-form').addEventListener('submit',async event=>{event.preventDefault();if(!state.controllerReady){showPreviewOnly(CONTROLLER_REQUIRED);return;}const data=formObject(event.currentTarget);el('login-error').textContent='';try{await api('/auth/login',{method:'POST',body:data});const principal=await api('/auth/me');await boot(principal);}catch(error){el('login-error').textContent=error.message;}});

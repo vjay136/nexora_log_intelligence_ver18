@@ -3,7 +3,7 @@ package engine
 import (
 	"strings"
 
-	"nexora.local/nli-v17/internal/mixedkv"
+	"nexora.local/nli-v18/internal/mixedkv"
 )
 
 var defaultMixedKVParser = mixedkv.MustCompile(mixedkv.DefaultConfig())

@@ -1,11 +1,11 @@
-%{!?nli_version:%global nli_version 17.0.0}
+%{!?nli_version:%global nli_version 18.0.0}
 %{!?nli_release:%global nli_release 2}
 Name:           nli-client
 Version:        %{nli_version}
 Release:        %{nli_release}%{?dist}
-Summary:        Nexora Log Intelligence Ver17 parsing client
+Summary:        Nexora Log Intelligence Ver18 parsing client
 License:        LicenseRef-Proprietary
-URL:            https://github.com/vjay136/nexora_log_intelligence_ver17.git
+URL:            https://github.com/vjay136/nexora_log_intelligence_ver18.git
 Source0:        %{name}-%{version}.tar.gz
 ExclusiveArch:  x86_64
 Provides:       nli-agent = %{version}-%{release}
@@ -21,8 +21,8 @@ AutoReqProv:    no
 %global __os_install_post %{nil}
 
 %description
-NLI v17 client containing the source-derived static parser agent, CLI, benchmark
-utility, and restricted fleet-control sidecar. The nli_clinet_ver17.rpm spelling
+NLI v18 client containing the source-derived static parser agent, CLI, benchmark
+utility, and restricted fleet-control sidecar. The nli_clinet_ver18.rpm spelling
 is a byte-identical distribution filename alias, not a second RPM package.
 
 %prep
@@ -108,10 +108,10 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %doc %{_docdir}/%{name}/PARSER_CATALOG.md
 
 %changelog
-* Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 17.0.0-2
+* Wed Oct 21 2026 Nexora Engineering <engineering@nexora.local> - 18.0.0-1
 - Fix one-second client telemetry publication, empty snapshots, and collection-error visibility.
 
-* Tue Oct 20 2026 Nexora Engineering <engineering@nexora.local> - 17.0.0-1
+* Tue Oct 20 2026 Nexora Engineering <engineering@nexora.local> - 18.0.0-1
 - Add NURSF canonical real-time synchronization, subsystem monitoring, and Grafana-grade dashboards.
 
 * Mon Oct 19 2026 Nexora Engineering <engineering@nexora.local> - 16.0.0-2

@@ -30,12 +30,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"nexora.local/nli-v17/internal/agent"
-	"nexora.local/nli-v17/internal/engine"
-	"nexora.local/nli-v17/internal/protocol"
-	"nexora.local/nli-v17/internal/registry"
-	"nexora.local/nli-v17/internal/rollout"
-	"nexora.local/nli-v17/telemetry"
+	"nexora.local/nli-v18/internal/agent"
+	"nexora.local/nli-v18/internal/engine"
+	"nexora.local/nli-v18/internal/protocol"
+	"nexora.local/nli-v18/internal/registry"
+	"nexora.local/nli-v18/internal/rollout"
+	"nexora.local/nli-v18/telemetry"
 )
 
 const maxPackageBytes = 512 * 1024 * 1024

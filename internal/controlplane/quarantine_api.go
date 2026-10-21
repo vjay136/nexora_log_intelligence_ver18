@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"nexora.local/nli-v17/internal/auditlog"
-	"nexora.local/nli-v17/internal/middleware"
-	metastore "nexora.local/nli-v17/internal/store"
+	"nexora.local/nli-v18/internal/auditlog"
+	"nexora.local/nli-v18/internal/middleware"
+	metastore "nexora.local/nli-v18/internal/store"
 )
 
 const (
